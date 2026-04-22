@@ -198,6 +198,11 @@ The repo includes a complete agent development stack for PRISM Level 3+ teams:
 | **Agent Eval** | Bedrock Evaluations | `bootstrapper/eval-harness/rubrics/agent-quality.json` |
 | **Workshop** | Module 02: Agent Development | `workshop/02-agent-development/` |
 
+## Competitive Landscape & Roadmap
+
+- **[Competitive Landscape](docs/competitive-landscape.md)** — How PRISM D1 compares to Swarmia, Jellyfish, LinearB, DX, Faros AI, and Pluralsight Flow across DORA, AI-native metrics, and platform capabilities
+- **[Community Roadmap](docs/ROADMAP.md)** — 35 prioritized backlog items across 8 phases to reach and exceed feature parity with commercial tools — open for community contributions
+
 **GitHub Pages**: [sunilpp.github.io/prism-d1-velocity](https://sunilpp.github.io/prism-d1-velocity/)
 
 ## License
