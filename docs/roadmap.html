@@ -158,6 +158,7 @@
         <li><a href="dashboard.html" class="nav-demo">Demo</a></li>
         <li><a href="competitive-landscape.html">Landscape</a></li>
         <li><a href="roadmap.html" style="color:#fff;border-bottom:2px solid var(--aws-squid)">Roadmap</a></li>
+        <li><a href="data-architecture.html">Data</a></li>
         <li><a href="https://github.com/sunilpp/prism-d1-velocity" class="nav-github" title="View on GitHub">
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         </a></li>
@@ -178,15 +179,15 @@
       <!-- Priority summary cards -->
       <div class="priority-grid">
         <div class="priority-card p0">
-          <div class="count">7</div>
+          <div class="count">12</div>
           <div class="label">P0 &mdash; Critical Gaps</div>
         </div>
         <div class="priority-card p1">
-          <div class="count">19</div>
+          <div class="count">25</div>
           <div class="label">P1 &mdash; High Value</div>
         </div>
         <div class="priority-card p2">
-          <div class="count">9</div>
+          <div class="count">10</div>
           <div class="label">P2 &mdash; Nice to Have</div>
         </div>
         <div class="priority-card novel">
@@ -232,6 +233,34 @@
             <tr><td>R-202</td><td><strong>True ROI dashboard widget</strong> &mdash; Calculate (productivity_gain x avg_eng_salary) / tool_cost</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">dashboard</span></td><td>Jellyfish, DX</td></tr>
             <tr><td>R-203</td><td><strong>License utilization tracking</strong> &mdash; Active vs provisioned seats per AI tool, flag underutilization</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">dashboard</span></td><td>Swarmia, Faros</td></tr>
             <tr><td>R-204</td><td><strong>Cost-per-deploy and cost-per-feature metrics</strong> &mdash; Derived metrics combining deployment events with cost data</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-s">S</span></td><td><span class="badge badge-label">dashboard</span> <span class="badge badge-label">new-metric</span></td><td>Jellyfish</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ===== PHASE 2B: Token & Cost Intelligence ===== -->
+      <div class="phase-header" id="phase-token-cost">
+        <div class="phase-num p2" style="background:var(--red)">2B</div>
+        <div>
+          <div class="phase-title">Token Usage &amp; Cost Intelligence (Bedrock)</div>
+          <div class="phase-goal">Capture Bedrock token consumption from Claude Code, Kiro, and Q Developer. Correlate to developers, commits, PRs, and features. Overlay cost.</div>
+        </div>
+      </div>
+      <div class="roadmap-table-wrap">
+        <table class="roadmap-table">
+          <thead><tr><th>ID</th><th>Item</th><th>Priority</th><th>Size</th><th>Labels</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td>R-210</td><td><strong>CloudTrail &rarr; EventBridge token pipeline</strong> &mdash; EventBridge rule matching <code>bedrock.amazonaws.com</code> InvokeModel/Converse calls in CloudTrail. Lambda extracts model_id, input_tokens, output_tokens, timestamp, IAM principal.</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-l">L</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">infra</span></td><td>Foundation for all token/cost metrics. Requires CloudTrail data events enabled for Bedrock.</td></tr>
+            <tr><td>R-211</td><td><strong>Model pricing table</strong> &mdash; DynamoDB table mapping model_id to per-1K-token cost (input/output). Updatable via API or manual config. Covers Claude Opus/Sonnet/Haiku, Amazon Titan, and future models.</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-s">S</span></td><td><span class="badge badge-label">infra</span> <span class="badge badge-label">new-metric</span></td><td>Prerequisite for cost calculation. Include on-demand and provisioned throughput pricing.</td></tr>
+            <tr><td>R-212</td><td><strong>IAM principal &rarr; Developer identity mapping</strong> &mdash; Resolve IAM role/user ARNs from CloudTrail to developer identities. Support mapping table (IAM ARN &rarr; developer email &rarr; team_id) and SSO/Identity Center federation.</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">infra</span></td><td>Critical for per-developer attribution. Without this, tokens are only trackable at the IAM role level.</td></tr>
+            <tr><td>R-213</td><td><strong>Token-to-commit correlation</strong> &mdash; Match Bedrock API calls to git commits using timestamp proximity (configurable window, default 5 min). When a commit with <code>AI-Tool: claude-code</code> lands, look back at Bedrock calls from the same developer in the preceding window.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-l">L</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">new-metric</span></td><td>Enables cost-per-commit. Challenge: multi-turn sessions may span multiple commits. Use session grouping heuristic (gap &gt; 15 min = new session).</td></tr>
+            <tr><td>R-214</td><td><strong>Token-to-PR aggregation</strong> &mdash; Sum all correlated token usage across commits in a PR. Link to PR metadata (author, feature branch, labels). Calculate cost-per-PR.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">new-metric</span></td><td>Depends on R-213. Enables feature-level cost visibility when PRs are tagged with feature labels.</td></tr>
+            <tr><td>R-215</td><td><strong>Token-to-feature/epic mapping</strong> &mdash; Aggregate PR-level costs up to feature/epic level using Jira/Linear issue keys extracted from PR titles, branch names, or commit messages. Optional: label-based grouping.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">integration</span></td><td>Depends on R-214. Answers &ldquo;how much AI spend went into Feature X?&rdquo; Requires issue key extraction regex.</td></tr>
+            <tr><td>R-216</td><td><strong>Developer session analytics</strong> &mdash; Group Bedrock API calls into developer sessions (gap-based: &gt;15 min idle = new session). Track: session duration, turns, total tokens (in/out), models used, cost. Publish as <code>prism.d1.session</code> event.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-l">L</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">new-metric</span></td><td>New event type. Enables &ldquo;avg session cost&rdquo;, &ldquo;tokens per session&rdquo;, &ldquo;sessions per developer per day&rdquo; metrics.</td></tr>
+            <tr><td>R-217</td><td><strong>CloudWatch token &amp; cost metrics</strong> &mdash; New metrics in PRISM/D1/Velocity namespace: <code>BedrockTokensInput</code>, <code>BedrockTokensOutput</code>, <code>BedrockCostUSD</code>, <code>CostPerCommit</code>, <code>CostPerPR</code>, <code>CostPerSession</code>, <code>TokenEfficiency</code> (output tokens / lines of code). Dimensions: TeamId, Developer, Model, AITool.</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">new-metric</span></td><td>Depends on R-210. Core metric publication for all downstream dashboards and alarms.</td></tr>
+            <tr><td>R-218</td><td><strong>Token &amp; cost dashboards</strong> &mdash; Add to both Team Velocity and Executive Readout: daily/weekly token consumption trends, cost by tool/model/developer, cost-per-commit trend, cost-per-PR distribution, token efficiency (tokens per line of code), budget burn rate with threshold lines.</td><td><span class="badge badge-p0">P0</span></td><td><span class="badge badge-l">L</span></td><td><span class="badge badge-label">dashboard</span></td><td>Depends on R-217. Exec dashboard: cost trends + budget. Dev dashboard: per-developer breakdown + efficiency.</td></tr>
+            <tr><td>R-219</td><td><strong>Cost anomaly alarms</strong> &mdash; CloudWatch alarms for: daily spend exceeds 2x 7-day average, single developer exceeds team P90, token efficiency drops below threshold. SNS notification to team channel.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-s">S</span></td><td><span class="badge badge-label">infra</span> <span class="badge badge-label">dashboard</span></td><td>Depends on R-217. Prevents runaway costs from unattended agent loops or inefficient prompting.</td></tr>
+            <tr><td>R-220</td><td><strong>Multi-tool cost normalization</strong> &mdash; Unified cost view across Bedrock (pay-per-token), Copilot (flat subscription), Cursor (subscription + usage), and other tools. Normalize to cost-per-developer-day for apples-to-apples comparison.</td><td><span class="badge badge-p2">P2</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">pipeline</span> <span class="badge badge-label">dashboard</span></td><td>Extends R-201. Different pricing models make comparison hard. Cost-per-developer-day is the common unit.</td></tr>
+            <tr><td>R-221</td><td><strong>ROI calculator with token cost input</strong> &mdash; Enhance the Executive ROI Multiplier widget: <code>(time_saved_hours &times; avg_hourly_eng_cost) / (token_cost + license_cost)</code>. Show break-even point and marginal ROI per additional AI-assisted commit.</td><td><span class="badge badge-p1">P1</span></td><td><span class="badge badge-m">M</span></td><td><span class="badge badge-label">dashboard</span> <span class="badge badge-label">new-metric</span></td><td>Depends on R-218 + R-202. The &ldquo;is AI worth it?&rdquo; answer for CFOs.</td></tr>
           </tbody>
         </table>
       </div>

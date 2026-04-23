@@ -201,7 +201,8 @@ The repo includes a complete agent development stack for PRISM Level 3+ teams:
 ## Competitive Landscape & Roadmap
 
 - **[Competitive Landscape](docs/competitive-landscape.md)** — How PRISM D1 compares to Swarmia, Jellyfish, LinearB, DX, Faros AI, and Pluralsight Flow across DORA, AI-native metrics, and platform capabilities
-- **[Community Roadmap](docs/ROADMAP.md)** — 35 prioritized backlog items across 8 phases to reach and exceed feature parity with commercial tools — open for community contributions
+- **[Community Roadmap](docs/ROADMAP.md)** — 47 prioritized backlog items across 9 phases to reach and exceed feature parity with commercial tools — open for community contributions
+- **[Data Architecture](docs/data-architecture.md)** — Complete metrics pipeline documentation: 7 data sources, 8 event types, AI tool detection, CloudWatch metrics catalog, and the token/cost tracking gap
 
 **GitHub Pages**: [sunilpp.github.io/prism-d1-velocity](https://sunilpp.github.io/prism-d1-velocity/)
 

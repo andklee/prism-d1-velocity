@@ -141,3 +141,19 @@ A: You need at least 2 weeks of data to see patterns and 4-6 weeks to establish 
 
 **Q: What does "good" look like at L3?**
 A: There's no universal target. A healthy L3 team typically shows: AI contribution ratio 40-70%, AI acceptance rate >85%, deployment frequency increasing or stable, lead time decreasing, eval gate false positive rate <5%. But your team's specific targets depend on your domain and risk tolerance.
+
+---
+
+## Deep Dive Resources
+
+| Resource | Description |
+|----------|-------------|
+| **[Data Architecture](../../docs/data-architecture.md)** | Complete pipeline documentation: 7 data sources, 8 event types, AI tool detection logic, CloudWatch metrics catalog, processing and storage details |
+| **[Competitive Landscape](../../docs/competitive-landscape.md)** | How PRISM dashboards compare to Swarmia, Jellyfish, LinearB, DX, Faros AI — where we lead and where we trail |
+| **[Community Roadmap](../../docs/ROADMAP.md)** | 47 backlog items including dashboard gap fixes, token/cost intelligence, benchmarking, and developer sentiment |
+
+### Known Gaps in Current Dashboards
+
+The current dashboard implementation has specific gaps between the Executive and Developer views. Quality signals (defect rates, test coverage) don't bubble up to executives, and maturity context (PRISM level) doesn't flow down to developers. Neither tier surfaces incident data or token/cost tracking.
+
+See the [Data Architecture — Current Gap: Token Usage & Cost Tracking](../../docs/data-architecture.md#current-gap-token-usage--cost-tracking) section for details on what's missing and the proposed Bedrock CloudTrail → Token Pipeline solution.

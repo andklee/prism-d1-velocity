@@ -45,6 +45,27 @@ Contributors: pick any item, open an issue referencing the roadmap ID (e.g., `R-
 
 ---
 
+## Phase 2B — Token Usage & Cost Intelligence (Bedrock)
+
+*Goal: Capture Bedrock token consumption from Claude Code, Kiro, and Q Developer. Correlate to developers, commits, PRs, and features. Overlay cost. See [Data Architecture](./data-architecture.md) for the full gap analysis.*
+
+| ID | Item | Priority | Complexity | Labels | Details |
+|----|------|----------|------------|--------|---------|
+| **R-210** | **CloudTrail → EventBridge token pipeline** — EventBridge rule matching `bedrock.amazonaws.com` InvokeModel/Converse calls in CloudTrail. Lambda extracts model_id, input_tokens, output_tokens, timestamp, IAM principal. | P0 | L | `pipeline`, `infra` | Foundation for all token/cost metrics. Requires CloudTrail data events for Bedrock. |
+| **R-211** | **Model pricing table** — DynamoDB table mapping model_id to per-1K-token cost (input/output). Covers Claude Opus/Sonnet/Haiku, Amazon Titan, future models. | P0 | S | `infra`, `new-metric` | Prerequisite for cost calculation. Include on-demand and provisioned throughput pricing. |
+| **R-212** | **IAM principal → Developer identity mapping** — Resolve IAM role/user ARNs to developer identities. Support mapping table (IAM ARN → email → team_id) and SSO/Identity Center federation. | P0 | M | `pipeline`, `infra` | Critical for per-developer attribution. |
+| **R-213** | **Token-to-commit correlation** — Match Bedrock API calls to git commits using timestamp proximity (configurable window, default 5 min). Session grouping heuristic (gap > 15 min = new session). | P1 | L | `pipeline`, `new-metric` | Enables cost-per-commit. Challenge: multi-turn sessions spanning multiple commits. |
+| **R-214** | **Token-to-PR aggregation** — Sum all correlated token usage across commits in a PR. Calculate cost-per-PR. | P1 | M | `pipeline`, `new-metric` | Depends on R-213. Enables feature-level cost visibility. |
+| **R-215** | **Token-to-feature/epic mapping** — Aggregate PR-level costs to feature/epic using Jira/Linear issue keys from PR titles, branch names, or commit messages. | P1 | M | `pipeline`, `integration` | Depends on R-214. Answers "how much AI spend went into Feature X?" |
+| **R-216** | **Developer session analytics** — Group Bedrock API calls into sessions (gap > 15 min = new session). Track: duration, turns, tokens in/out, models used, cost. New `prism.d1.session` event type. | P1 | L | `pipeline`, `new-metric` | Enables "avg session cost", "tokens per session", "sessions per developer per day". |
+| **R-217** | **CloudWatch token & cost metrics** — New metrics: `BedrockTokensInput`, `BedrockTokensOutput`, `BedrockCostUSD`, `CostPerCommit`, `CostPerPR`, `CostPerSession`, `TokenEfficiency` (output tokens / lines of code). Dimensions: TeamId, Developer, Model, AITool. | P0 | M | `pipeline`, `new-metric` | Depends on R-210. Core metric publication for downstream dashboards. |
+| **R-218** | **Token & cost dashboards** — Add to both dashboards: daily/weekly token trends, cost by tool/model/developer, cost-per-commit trend, cost-per-PR distribution, token efficiency, budget burn rate. | P0 | L | `dashboard` | Depends on R-217. Exec: cost trends + budget. Dev: per-developer breakdown + efficiency. |
+| **R-219** | **Cost anomaly alarms** — Alarms for: daily spend > 2x 7-day avg, single developer > team P90, token efficiency below threshold. SNS notification. | P1 | S | `infra`, `dashboard` | Prevents runaway costs from unattended loops or inefficient prompting. |
+| **R-220** | **Multi-tool cost normalization** — Unified view across Bedrock (pay-per-token), Copilot (subscription), Cursor (subscription + usage). Normalize to cost-per-developer-day. | P2 | M | `pipeline`, `dashboard` | Different pricing models make comparison hard. |
+| **R-221** | **ROI calculator with token cost input** — Enhanced ROI Multiplier: `(time_saved × hourly_eng_cost) / (token_cost + license_cost)`. Show break-even and marginal ROI. | P1 | M | `dashboard`, `new-metric` | The "is AI worth it?" answer for CFOs. |
+
+---
+
 ## Phase 3 — Developer Experience & Sentiment
 
 *Goal: Add qualitative measurement to complement systems data — the biggest gap vs. DX and Faros.*
@@ -135,6 +156,7 @@ Contributors: pick any item, open an issue referencing the roadmap ID (e.g., `R-
 |-------|----------|----------|----------|-------|
 | 1 — Dashboard Gaps | 4 | 1 | 0 | Complete the picture |
 | 2 — Cost & ROI | 2 | 2 | 0 | Prove the business case |
+| 2B — Token & Cost Intelligence | 5 | 6 | 1 | Bedrock token tracking & cost overlay |
 | 3 — DevEx & Sentiment | 1 | 2 | 1 | Qualitative measurement |
 | 4 — Benchmarking | 0 | 2 | 2 | Community comparisons |
 | 5 — Scale | 0 | 3 | 1 | Enterprise readiness |
@@ -142,7 +164,7 @@ Contributors: pick any item, open an issue referencing the roadmap ID (e.g., `R-
 | 7 — Integrations | 0 | 3 | 3 | Ecosystem connectivity |
 | 8 — Novel | 0 | 3 | 4 | PRISM-exclusive innovation |
 
-**Recommended execution order:** Phase 1 → 2 → 3 → 7 (R-701, R-705) → 4 → 5 → 6 → 8
+**Recommended execution order:** Phase 1 → 2 → 2B → 3 → 7 (R-701, R-705) → 4 → 5 → 6 → 8
 
 ---
 
