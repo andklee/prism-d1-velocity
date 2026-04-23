@@ -79,8 +79,13 @@ export async function handler(event: EventBridgeEvent): Promise<void> {
   console.log(`[metrics-processor] detail-type=${detailType} team_id=${detail?.team_id} repo=${detail?.repo} timestamp=${detail?.timestamp}`);
   console.log(`[metrics-processor] dora=${JSON.stringify(detail?.dora)} ai_dora=${JSON.stringify(detail?.ai_dora)} metric=${JSON.stringify(detail?.metric)}`);
 
-  if (!detail.team_id || !detail.repo || !detail.timestamp) {
-    console.error('[metrics-processor] VALIDATION FAILED: Missing required fields: team_id, repo, or timestamp');
+  if (!detail.team_id) {
+    console.log('[metrics-processor] No team_id provided, defaulting to "no_team"');
+    detail.team_id = 'no_team';
+  }
+
+  if (!detail.repo || !detail.timestamp) {
+    console.error('[metrics-processor] VALIDATION FAILED: Missing required fields: repo or timestamp');
     throw new Error('Event missing required fields');
   }
 
