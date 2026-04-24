@@ -90,7 +90,7 @@ For a CLI-only or fully manual workflow, run the [PRISM Assessment](assessment/R
 
 ### Run the Workshop
 
-Open the [AWS Workshop](https://studio.us-east-1.prod.workshops.aws/preview/d0a8b037-dfe0-4023-9ce2-f5de32ee4c67/builds/f127f2bb-cd58-49f4-8ea8-b6bf77c49618) from your browser.
+Open the [AWS Workshop](https://studio.us-east-1.prod.workshops.aws/preview/d0a8b037-dfe0-4023-9ce2-f5de32ee4c67/builds/394a0905-cfd8-46de-9ee1-0615f21744f5) from your browser.
 
 ### Run the Sample Agent (No AWS Required)
 

@@ -34,7 +34,7 @@ AI_TOOL=""
 if [[ -n "${CLAUDE_CODE:-}" || -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
     AI_ORIGIN="ai-assisted"
     AI_TOOL="claude-code"
-    AI_MODEL="${CLAUDE_MODEL:-anthropic.claude-sonnet-4-20250514}"
+    AI_MODEL="${ANTHROPIC_MODEL:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}"
 fi
 
 # Check for Kiro markers
