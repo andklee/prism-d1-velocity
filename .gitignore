@@ -9,3 +9,4 @@ cdk.out/
 *.swp
 .DS_Store
 __pycache__
+.prism/tokentracker

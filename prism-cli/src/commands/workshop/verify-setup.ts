@@ -449,8 +449,22 @@ async function checkUtilities(verifyOnly = false) {
   }
 }
 
+async function checkCcusage(verifyOnly = false) {
+  heading('9. ccusage (Claude Code token tracker)');
+
+  if (commandExists('ccusage')) {
+    const { stdout } = run('ccusage --version');
+    pass(`ccusage installed (${stdout || 'version unknown'})`);
+  } else {
+    fail('ccusage not found', 'Run: npm install -g ccusage');
+    if (!verifyOnly) {
+      await offerInstall('ccusage', 'npm install -g ccusage');
+    }
+  }
+}
+
 async function checkSampleApp(verifyOnly = false) {
-  heading('9. Sample App Dependencies');
+  heading('10. Sample App Dependencies');
 
   const sampleAppDir = resolve(__dirname, '../../../../sample-app');
 
@@ -510,6 +524,7 @@ async function verifySetup(opts: { skipAws?: boolean; skipKiro?: boolean; verify
   await checkNode(VERIFY_ONLY);
   await checkPython(VERIFY_ONLY);
   await checkUtilities(VERIFY_ONLY);
+  await checkCcusage(VERIFY_ONLY);
   await checkSampleApp(VERIFY_ONLY);
 
   console.log('');

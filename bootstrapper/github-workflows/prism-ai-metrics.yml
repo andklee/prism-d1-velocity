@@ -61,6 +61,9 @@ jobs:
           AI_GENERATED=0
           AI_ASSISTED=0
           HUMAN_ONLY=0
+          TOTAL_INPUT_TOKENS=0
+          TOTAL_OUTPUT_TOKENS=0
+          TOTAL_COST="0"
           for SHA in $(git rev-list "${BASE_SHA}..${HEAD_SHA}"); do
             MSG=$(git log -1 --format='%B' "${SHA}")
             if echo "${MSG}" | grep -q '^AI-Origin: ai-generated'; then
@@ -70,6 +73,14 @@ jobs:
             elif echo "${MSG}" | grep -q '^AI-Origin: human'; then
               HUMAN_ONLY=$((HUMAN_ONLY + 1))
             fi
+
+            # Accumulate token usage trailers
+            INPUT_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Input-Tokens: )\d+' || echo "0")
+            OUTPUT_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Output-Tokens: )\d+' || echo "0")
+            COST_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Cost: )[0-9.]+' || echo "0")
+            TOTAL_INPUT_TOKENS=$((TOTAL_INPUT_TOKENS + INPUT_T))
+            TOTAL_OUTPUT_TOKENS=$((TOTAL_OUTPUT_TOKENS + OUTPUT_T))
+            TOTAL_COST=$(echo "${TOTAL_COST} + ${COST_T}" | bc -l)
           done
 
           AI_COMMITS=$((AI_GENERATED + AI_ASSISTED))
@@ -88,6 +99,9 @@ jobs:
           echo "ai_generated=${AI_GENERATED}" >> "$GITHUB_OUTPUT"
           echo "ai_assisted=${AI_ASSISTED}" >> "$GITHUB_OUTPUT"
           echo "human_only=${HUMAN_ONLY}" >> "$GITHUB_OUTPUT"
+          echo "total_input_tokens=${TOTAL_INPUT_TOKENS}" >> "$GITHUB_OUTPUT"
+          echo "total_output_tokens=${TOTAL_OUTPUT_TOKENS}" >> "$GITHUB_OUTPUT"
+          echo "total_cost=${TOTAL_COST}" >> "$GITHUB_OUTPUT"
 
       - name: Calculate lead time
         id: lead-time
@@ -161,6 +175,9 @@ jobs:
             --argjson changes_requested "${{ steps.acceptance.outputs.changes_requested }}" \
             --arg acceptance_rate "${{ steps.acceptance.outputs.acceptance_rate }}" \
             --arg ai_acceptance_rate "${{ steps.acceptance.outputs.ai_acceptance_rate }}" \
+            --argjson total_input_tokens "${{ steps.ai-ratio.outputs.total_input_tokens }}" \
+            --argjson total_output_tokens "${{ steps.ai-ratio.outputs.total_output_tokens }}" \
+            --arg total_cost "${{ steps.ai-ratio.outputs.total_cost }}" \
             '{
               "team_id": $team_id,
               "repo": $repo,
@@ -186,7 +203,10 @@ jobs:
                 "total_commits": $total_commits,
                 "ai_commits": $ai_commits,
                 "ai_generated_commits": $ai_generated,
-                "ai_assisted_commits": $ai_assisted
+                "ai_assisted_commits": $ai_assisted,
+                "total_input_tokens": $total_input_tokens,
+                "total_output_tokens": $total_output_tokens,
+                "total_cost_usd": (if $total_cost != "0" and $total_cost != "" then ($total_cost | tonumber) else 0 end)
               },
               "pr": {
                 "number": ($pr_number | tonumber),

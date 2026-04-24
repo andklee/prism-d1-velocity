@@ -132,12 +132,24 @@ export default {
         const ts = `${dateStr}T${String(randomInt(8, 17)).padStart(2, '0')}:30:00Z`;
         const pr = 100 + day * 10 + i;
 
+        // Generate realistic token usage for the PR (scales with commit count)
+        const inputTokens = ac > 0 ? randomInt(5000, 15000) * tc : 0;
+        const outputTokens = ac > 0 ? randomInt(10000, 40000) * tc : 0;
+        const costUsd = ac > 0 ? parseFloat(((inputTokens * 0.003 + outputTokens * 0.015) / 100).toFixed(2)) : 0;
+
         addEvent('prism.d1.pr', {
           team_id: team, repo, timestamp: ts, prism_level: 2,
           metric: { name: 'ai_to_merge_ratio', value: ratio, unit: 'ratio' },
           ai_context: { tool: 'github-actions', model: 'n/a', origin: ac > 0 ? 'ai-assisted' : 'human' },
           dora: { deployment_frequency: 1, lead_time_seconds: lt },
-          ai_dora: { ai_to_merge_ratio: ratio, total_commits: tc, ai_commits: ac },
+          ai_dora: {
+            ai_to_merge_ratio: ratio,
+            total_commits: tc,
+            ai_commits: ac,
+            total_input_tokens: inputTokens,
+            total_output_tokens: outputTokens,
+            total_cost_usd: costUsd,
+          },
           pr: { number: pr, author: 'engineer' },
         });
 

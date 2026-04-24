@@ -179,6 +179,62 @@ export class DashboardStack extends cdk.Stack {
 
     teamDashboard.addWidgets(
       new cloudwatch.TextWidget({
+        markdown: '### AI Token Usage & Cost',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'AI Input Tokens per PR',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'AIInputTokens',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Input Tokens',
+          }),
+        ],
+        width: 8,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Tokens' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'AI Output Tokens per PR',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'AIOutputTokens',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Output Tokens',
+          }),
+        ],
+        width: 8,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Tokens' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'AI Cost per PR (USD)',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'AICostUSD',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Cost (USD)',
+          }),
+        ],
+        width: 8,
+        height: 6,
+        leftYAxis: { min: 0, label: 'USD' },
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
         markdown: '### Agent Operations',
         width: 24,
         height: 1,
@@ -302,8 +358,15 @@ export class DashboardStack extends cdk.Stack {
         height: 4,
       }),
       new cloudwatch.SingleValueWidget({
-        title: 'Cost per AI-Assisted Feature',
+        title: 'AI Cost & Cycle Time',
         metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'AICostUSD',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Total AI Cost (7d, USD)',
+          }),
           new cloudwatch.Metric({
             namespace: METRIC_NAMESPACE,
             metricName: 'SpecToCodeHours',
@@ -371,7 +434,7 @@ export class DashboardStack extends cdk.Stack {
       }),
     );
 
-    // --- Eval gate and quality trend row ---
+    // --- Eval gate, quality, and cost trend row ---
     execDashboard.addWidgets(
       new cloudwatch.GaugeWidget({
         title: 'Eval Gate Pass Rate',
@@ -384,7 +447,7 @@ export class DashboardStack extends cdk.Stack {
             label: 'Eval Pass Rate (%)',
           }),
         ],
-        width: 8,
+        width: 6,
         height: 6,
         leftYAxis: { min: 0, max: 100 },
       }),
@@ -399,9 +462,24 @@ export class DashboardStack extends cdk.Stack {
             label: 'Defect Rate (%)',
           }),
         ],
-        width: 8,
+        width: 6,
         height: 6,
         leftYAxis: { min: 0, label: 'Percent' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'AI Cost Trend (Weekly)',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'AICostUSD',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Total Cost (USD)',
+          }),
+        ],
+        width: 6,
+        height: 6,
+        leftYAxis: { min: 0, label: 'USD' },
       }),
       new cloudwatch.GraphWidget({
         title: 'Deployment Frequency (Weekly)',
@@ -414,7 +492,7 @@ export class DashboardStack extends cdk.Stack {
             label: 'Deploys / Week',
           }),
         ],
-        width: 8,
+        width: 6,
         height: 6,
         view: cloudwatch.GraphWidgetView.BAR,
         leftYAxis: { min: 0, label: 'Deployments' },

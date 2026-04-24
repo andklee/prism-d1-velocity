@@ -34,7 +34,7 @@ AI_TOOL=""
 if [[ -n "${CLAUDE_CODE:-}" || -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
     AI_ORIGIN="ai-assisted"
     AI_TOOL="claude-code"
-    AI_MODEL="${CLAUDE_MODEL:-anthropic.claude-sonnet-4-20250514}"
+    AI_MODEL="${ANTHROPIC_MODEL:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}"
 fi
 
 # Check for Kiro markers
@@ -79,6 +79,66 @@ if [[ -n "${MSG_SPEC}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Track Claude Code token usage via ccusage
+# ---------------------------------------------------------------------------
+AI_INPUT_TOKENS=""
+AI_OUTPUT_TOKENS=""
+AI_COST=""
+
+if [[ "${AI_TOOL}" == "claude-code" ]] && command -v ccusage &>/dev/null; then
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+    TRACKER_DIR="${REPO_ROOT}/.prism/tokentracker"
+    CURRENT_USER=$(git config user.email 2>/dev/null || whoami)
+    # Sanitize username for filename (replace @ and . with _)
+    SAFE_USER=$(echo "${CURRENT_USER}" | sed 's/[@.]/_/g')
+    TRACKER_FILE="${TRACKER_DIR}/${SAFE_USER}.json"
+
+    # Get current cumulative token counts from ccusage monthly
+    CCUSAGE_JSON=$(ccusage monthly --json 2>/dev/null || echo "")
+
+    if [[ -n "${CCUSAGE_JSON}" ]]; then
+        CURRENT_INPUT=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.inputTokens // 0' 2>/dev/null || echo "0")
+        CURRENT_OUTPUT=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.outputTokens // 0' 2>/dev/null || echo "0")
+        CURRENT_COST=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.totalCost // 0' 2>/dev/null || echo "0")
+
+        if [[ -f "${TRACKER_FILE}" ]]; then
+            # Read previous snapshot
+            PREV_INPUT=$(jq -r '.inputTokens // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
+            PREV_OUTPUT=$(jq -r '.outputTokens // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
+            PREV_COST=$(jq -r '.costUSD // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
+
+            # Calculate delta since last commit
+            AI_INPUT_TOKENS=$(( CURRENT_INPUT - PREV_INPUT ))
+            AI_OUTPUT_TOKENS=$(( CURRENT_OUTPUT - PREV_OUTPUT ))
+            AI_COST=$(echo "${CURRENT_COST} - ${PREV_COST}" | bc 2>/dev/null || echo "0")
+
+            # Guard against negative values (e.g., new month rollover)
+            if [[ "${AI_INPUT_TOKENS}" -lt 0 ]]; then AI_INPUT_TOKENS="${CURRENT_INPUT}"; fi
+            if [[ "${AI_OUTPUT_TOKENS}" -lt 0 ]]; then AI_OUTPUT_TOKENS="${CURRENT_OUTPUT}"; fi
+            if (( $(echo "${AI_COST} < 0" | bc 2>/dev/null || echo "0") )); then AI_COST="${CURRENT_COST}"; fi
+        else
+            # First run — initialize tracker, set tokens to 0 for this commit
+            mkdir -p "${TRACKER_DIR}"
+            AI_INPUT_TOKENS=0
+            AI_OUTPUT_TOKENS=0
+            AI_COST="0"
+        fi
+
+        # Save current snapshot for next commit
+        mkdir -p "${TRACKER_DIR}"
+        cat > "${TRACKER_FILE}" <<SNAPSHOT
+{
+  "inputTokens": ${CURRENT_INPUT},
+  "outputTokens": ${CURRENT_OUTPUT},
+  "costUSD": ${CURRENT_COST},
+  "lastCommit": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "user": "${CURRENT_USER}"
+}
+SNAPSHOT
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Append trailers to commit message
 # ---------------------------------------------------------------------------
 
@@ -98,6 +158,18 @@ fi
 
 if [[ -n "${AI_MODEL}" ]]; then
     echo "AI-Model: ${AI_MODEL}" >> "${COMMIT_MSG_FILE}"
+fi
+
+if [[ -n "${AI_INPUT_TOKENS}" ]]; then
+    echo "AI-Input-Tokens: ${AI_INPUT_TOKENS}" >> "${COMMIT_MSG_FILE}"
+fi
+
+if [[ -n "${AI_OUTPUT_TOKENS}" ]]; then
+    echo "AI-Output-Tokens: ${AI_OUTPUT_TOKENS}" >> "${COMMIT_MSG_FILE}"
+fi
+
+if [[ -n "${AI_COST}" ]]; then
+    echo "AI-Cost: \$${AI_COST}" >> "${COMMIT_MSG_FILE}"
 fi
 
 if [[ -n "${SPEC_REF}" ]]; then

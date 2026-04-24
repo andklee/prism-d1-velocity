@@ -31,6 +31,9 @@ interface AiDoraMetrics {
   post_merge_defect_rate: number | null;
   eval_gate_pass_rate: number | null;
   ai_test_coverage_delta: number | null;
+  total_input_tokens: number | null;
+  total_output_tokens: number | null;
+  total_cost_usd: number | null;
 }
 
 interface MetricDetail {
@@ -330,6 +333,9 @@ async function publishCloudWatchMetrics(
       ['PostMergeDefectRate', detail.ai_dora.post_merge_defect_rate, StandardUnit.Percent],
       ['EvalGatePassRate', detail.ai_dora.eval_gate_pass_rate, StandardUnit.Percent],
       ['AITestCoverageDelta', detail.ai_dora.ai_test_coverage_delta, StandardUnit.Percent],
+      ['AIInputTokens', detail.ai_dora.total_input_tokens, StandardUnit.Count],
+      ['AIOutputTokens', detail.ai_dora.total_output_tokens, StandardUnit.Count],
+      ['AICostUSD', detail.ai_dora.total_cost_usd, StandardUnit.None],
     ];
 
     for (const [name, value, unit] of aiDoraMap) {
