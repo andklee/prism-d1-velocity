@@ -82,6 +82,17 @@ The web tool supports two workflows:
 2. Conduct the interview using the built-in guide with scoring rubrics
 3. Generate the HTML report directly in the browser
 
+**AI Agent interview:**
+1. After scanning (or importing a scan), choose "AI Agent Interview" from the next steps
+2. An AI agent conducts the 20-question interview conversationally, asks follow-up probes, and scores responses against the rubrics automatically
+3. The agent uses context from prior answers to ask smarter questions and avoid repetition
+4. When complete, generates the same assessment report as the manual flow
+
+The AI agent requires **Amazon Bedrock access** — specifically the `us.anthropic.claude-sonnet-4-6` model (Claude Sonnet 4.6 via cross-region inference). To set this up:
+- Enable model access in the [Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess) (Anthropic → Claude Sonnet 4.6)
+- Configure AWS credentials locally (`aws configure`, SSO, or environment variables)
+- The agent validates Bedrock access on startup and shows setup instructions if anything is missing
+
 The interview form includes the full question bank, scoring rubrics, and scanner-informed focus areas. Reports can be printed or saved as PDF from the browser.
 
 #### Manual Assessment
