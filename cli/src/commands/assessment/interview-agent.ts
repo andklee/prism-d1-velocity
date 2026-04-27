@@ -44,6 +44,8 @@ export interface AgentSessionState {
   closingNotes: string;
   messages: AgentMessage[];
   scanData: ScanResult;
+  /** Curated summary of prior answers relevant to remaining questions */
+  runningContext: string;
 }
 
 // Re-export the interview sections structure from web.ts for shared use
@@ -198,7 +200,7 @@ interface BedrockResponse {
 async function callBedrock(
   system: string,
   messages: BedrockMessage[],
-  modelId: string = 'anthropic.claude-sonnet-4-20250514',
+  modelId: string = 'us.anthropic.claude-sonnet-4-6',
   region: string = 'us-west-2',
 ): Promise<string> {
   // Dynamic import so the CLI doesn't hard-fail if SDK isn't installed
@@ -225,6 +227,74 @@ async function callBedrock(
   const response = await client.send(command);
   const decoded = JSON.parse(new TextDecoder().decode(response.body)) as BedrockResponse;
   return decoded.content?.[0]?.text ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// Bedrock access check — validates credentials + model access before starting
+// ---------------------------------------------------------------------------
+
+export interface BedrockCheckResult {
+  ok: boolean;
+  error?: string;
+  errorType?: 'no_credentials' | 'no_model_access' | 'wrong_region' | 'sdk_missing' | 'unknown';
+}
+
+export async function checkBedrockAccess(
+  modelId: string = 'us.anthropic.claude-sonnet-4-6',
+  region: string = 'us-west-2',
+): Promise<BedrockCheckResult> {
+  try {
+    // Check SDK is installed
+    const { BedrockRuntimeClient, InvokeModelCommand } = await import(
+      '@aws-sdk/client-bedrock-runtime'
+    );
+
+    const client = new BedrockRuntimeClient({ region });
+
+    // Minimal request — 1 token max to keep it cheap and fast
+    const body = JSON.stringify({
+      anthropic_version: 'bedrock-2023-05-31',
+      max_tokens: 1,
+      temperature: 0,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    const command = new InvokeModelCommand({
+      modelId,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: new TextEncoder().encode(body),
+    });
+
+    await client.send(command);
+    return { ok: true };
+  } catch (err: any) {
+    const msg = err.message || String(err);
+    const name = err.name || '';
+
+    // SDK not installed
+    if (msg.includes('Cannot find module') || msg.includes('ERR_MODULE_NOT_FOUND')) {
+      return { ok: false, error: 'AWS SDK not installed. Run: npm install @aws-sdk/client-bedrock-runtime', errorType: 'sdk_missing' };
+    }
+
+    // No credentials configured
+    if (name === 'CredentialsProviderError' || msg.includes('Could not load credentials') || msg.includes('credential')) {
+      return { ok: false, error: 'No AWS credentials found.', errorType: 'no_credentials' };
+    }
+
+    // Access denied — model not enabled or wrong permissions
+    if (name === 'AccessDeniedException' || msg.includes('Access denied') || msg.includes('not authorized') || msg.includes('Legacy')) {
+      return { ok: false, error: msg, errorType: 'no_model_access' };
+    }
+
+    // Model not found in region
+    if (msg.includes('model identifier is invalid') || msg.includes('Could not resolve')) {
+      return { ok: false, error: msg, errorType: 'wrong_region' };
+    }
+
+    // Unknown error
+    return { ok: false, error: msg, errorType: 'unknown' };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -263,9 +333,14 @@ Follow-ups used so far for this question: ${state.followUpCount}/${state.maxFoll
 `;
   }
 
-  // Completed scores so far
-  const completedScores = state.results.length > 0
-    ? `\nSCORES SO FAR:\n${state.results.map(r => `- ${r.questionId} (${r.label}): ${r.score}/5 — ${r.evidence}`).join('\n')}`
+  // Use curated running context instead of full evidence dump
+  const contextSection = state.runningContext
+    ? `\nRELEVANT CONTEXT FROM PRIOR ANSWERS (use this to ask smarter questions and avoid re-asking what we already know):\n${state.runningContext}`
+    : '';
+
+  // Brief score summary for progress tracking
+  const scoreSummary = state.results.length > 0
+    ? `\nSCORES SO FAR: ${state.results.map(r => `${r.questionId}=${r.score}`).join(', ')}`
     : '';
 
   return `You are an expert AWS Solutions Architect conducting a PRISM D1 Velocity assessment interview. You are evaluating the AI-native software development lifecycle maturity of a startup.
@@ -282,6 +357,8 @@ RULES:
 6. Reference scanner findings when relevant to probe discrepancies (e.g., "I noticed your repo doesn't have spec files — where do design decisions live?").
 7. Keep responses concise — 2-4 sentences for transitions, 1-2 sentences for follow-ups.
 8. Do NOT reveal the scoring rubric or your scores to the interviewee.
+9. USE CONTEXT from previous answers. If the interviewee already mentioned relevant details in an earlier answer, acknowledge that and build on it rather than asking them to repeat themselves. For example, if they already described their CI/CD pipeline, reference that when asking about AI validation in CI.
+10. If a previous answer partially addresses the current question, acknowledge what you already know and ask only about the gap.
 
 SCANNER RESULTS (for context and probing):
 Repository: ${scan.repoName}
@@ -292,7 +369,8 @@ ${scannerGaps}
 INTERVIEW PROGRESS:
 Section ${state.currentSectionIdx + 1}/${SECTIONS.length}: ${section?.name || 'Complete'}
 Question ${state.currentQuestionIdx + 1}/${section?.questions.length || 0} in this section
-${completedScores}
+${scoreSummary}
+${contextSection}
 
 ${questionContext}
 
@@ -348,6 +426,7 @@ export function createSession(scan: ScanResult): AgentSessionState {
     closingNotes: '',
     messages: [],
     scanData: scan,
+    runningContext: '',
   };
 }
 
@@ -407,25 +486,61 @@ Before we dive in, could you share:
     return { reply: greeting, state, done: false };
   }
 
-  // Parse intro info from the response using the LLM
-  const parsePrompt = `Extract the following from the user's message. Return ONLY a JSON object:
-{"customerName": "company or team name", "teamSize": number, "fundingStage": "stage", "intervieweeName": "their name and role"}
+  // Parse intro info from the full conversation so far using the LLM
+  const allUserMessages = state.messages
+    .filter(m => m.role === 'user')
+    .map(m => m.content)
+    .join('\n');
 
-If any field is unclear, use "Unknown" for strings and 0 for numbers.
+  const parsePrompt = `Extract the following from the user's messages. Return ONLY a JSON object with these exact keys:
+- "customerName": the company or team name (string, or "" if not mentioned)
+- "teamSize": number of engineers (number, or 0 if not mentioned)  
+- "fundingStage": funding stage like "Seed", "Series A", etc. (string, or "" if not mentioned)
+- "intervieweeName": their personal name and role (string, or "" if not mentioned)
 
-User said: "${userMessage}"`;
+IMPORTANT: Use empty string "" for missing text fields and 0 for missing numbers. Never use null.
+
+User messages:
+${allUserMessages}`;
 
   try {
-    const parsed = await callBedrock(parsePrompt, [], modelId, region);
-    const info = JSON.parse(parsed.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
-    state.customerName = info.customerName || state.customerName;
-    state.teamSize = info.teamSize || state.teamSize;
-    state.fundingStage = info.fundingStage || state.fundingStage;
-  } catch {
-    // If parsing fails, continue anyway
+    const raw = await callBedrock(
+      'You are a data extraction assistant. Return only valid JSON, no markdown.',
+      [{ role: 'user', content: parsePrompt + '\n\nUser messages:\n' + allUserMessages }],
+      modelId,
+      region,
+    );
+    const cleaned = raw.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const info = JSON.parse(cleaned);
+    
+    const name = String(info.customerName || '').trim();
+    const size = parseInt(String(info.teamSize || '0'), 10);
+    const funding = String(info.fundingStage || '').trim();
+    
+    if (name && name !== 'null' && name !== 'Unknown') state.customerName = name;
+    if (size > 0) state.teamSize = size;
+    if (funding && funding !== 'null' && funding !== 'Unknown') state.fundingStage = funding;
+  } catch (err) {
+    // Log for debugging, then check what's missing below
+    console.error('Intro parse error:', err);
   }
 
-  // Transition to interview
+  // Check what's still missing and ask follow-up
+  const missing: string[] = [];
+  if (!state.customerName) missing.push('your **company or team name**');
+  if (!state.teamSize || state.teamSize === 0) missing.push('your **approximate engineering team size**');
+  if (!state.fundingStage) missing.push('your **funding stage** (Seed, Series A/B/C, etc.)');
+
+  // Also check for interviewee name — stored in messages but useful context
+  const hasName = state.messages.some(m => m.role === 'user') && !missing.length;
+
+  if (missing.length > 0) {
+    const followUp = `Thanks for that! I just want to make sure I have everything — could you also share ${missing.join(' and ')}?`;
+    state.messages.push({ role: 'assistant', content: followUp });
+    return { reply: followUp, state, done: false };
+  }
+
+  // All info collected — transition to interview
   state.phase = 'interview';
   state.currentSectionIdx = 0;
   state.currentQuestionIdx = 0;
@@ -464,6 +579,7 @@ async function handleInterview(
   // Check if the LLM included a score
   const scoreMatch = reply.match(/<!--SCORE:(.*?)-->/s);
   let cleanReply = reply.replace(/<!--SCORE:.*?-->/s, '').trim();
+  let scoredThisTurn = false;
 
   if (scoreMatch) {
     try {
@@ -476,10 +592,12 @@ async function handleInterview(
         evidence: scoreData.evidence || '',
         notes: scoreData.notes || '',
       });
+      scoredThisTurn = true;
     } catch {
       // If score parsing fails, use fallback scoring
-      const fallbackScore = await scoreFallback(question, state.messages, modelId, region);
+      const fallbackScore = await scoreFallback(question, state.messages, modelId, region, section.name);
       state.results.push(fallbackScore);
+      scoredThisTurn = true;
     }
 
     // Advance to next question
@@ -509,8 +627,9 @@ Does your organization have an **executive sponsor** (CTO/VP level) who actively
     // If we've hit max follow-ups, force a score on the next round
     if (state.followUpCount >= state.maxFollowUps) {
       // Score based on what we have
-      const fallbackScore = await scoreFallback(question, state.messages, modelId, region);
+      const fallbackScore = await scoreFallback(question, state.messages, modelId, region, section.name);
       state.results.push(fallbackScore);
+      scoredThisTurn = true;
 
       state.followUpCount = 0;
       state.currentQuestionIdx++;
@@ -530,6 +649,12 @@ Does your organization have an **executive sponsor** (CTO/VP level) who actively
   }
 
   state.messages.push({ role: 'assistant', content: cleanReply });
+
+  // Refresh running context only when a question was scored this turn
+  if (scoredThisTurn && state.phase === 'interview') {
+    state.runningContext = await refreshRunningContext(state, modelId, region);
+  }
+
   return { reply: cleanReply, state, done: false };
 }
 
@@ -538,15 +663,21 @@ async function scoreFallback(
   messages: AgentMessage[],
   modelId?: string,
   region?: string,
+  sectionName: string = '',
 ): Promise<QuestionResult> {
   try {
     const prompt = buildScoringPrompt(question, messages.slice(-6));
-    const result = await callBedrock(prompt, [], modelId, region);
+    const result = await callBedrock(
+      'You are a scoring assistant. Return only valid JSON.',
+      [{ role: 'user', content: prompt }],
+      modelId,
+      region,
+    );
     const parsed = JSON.parse(result.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
     return {
       questionId: question.id,
       label: question.label,
-      section: '',
+      section: sectionName,
       score: Math.min(5, Math.max(0, parsed.score || 0)),
       evidence: parsed.evidence || '',
       notes: parsed.notes || '',
@@ -555,11 +686,64 @@ async function scoreFallback(
     return {
       questionId: question.id,
       label: question.label,
-      section: '',
+      section: sectionName,
       score: 0,
       evidence: 'Could not score — insufficient evidence',
       notes: 'Fallback scoring failed',
     };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Running context — curate relevant facts for remaining questions
+// ---------------------------------------------------------------------------
+
+async function refreshRunningContext(
+  state: AgentSessionState,
+  modelId?: string,
+  region?: string,
+): Promise<string> {
+  // Gather remaining question labels
+  const remaining: string[] = [];
+  for (let s = state.currentSectionIdx; s < SECTIONS.length; s++) {
+    const startQ = s === state.currentSectionIdx ? state.currentQuestionIdx : 0;
+    for (let q = startQ; q < SECTIONS[s].questions.length; q++) {
+      remaining.push(`${SECTIONS[s].name}: ${SECTIONS[s].questions[q].label}`);
+    }
+  }
+
+  if (remaining.length === 0 || state.results.length === 0) return '';
+
+  // Build evidence from all scored questions
+  const evidence = state.results
+    .map(r => `[${r.section} — ${r.label}] Score: ${r.score}/5. ${r.evidence}${r.notes ? ' ' + r.notes : ''}`)
+    .join('\n');
+
+  const prompt = `You are helping an interviewer prepare context for upcoming questions.
+
+SCORED ANSWERS SO FAR:
+${evidence}
+
+REMAINING QUESTIONS (topics only):
+${remaining.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+Extract ONLY the facts from the scored answers that are directly relevant to the remaining questions. Be concise — short bullet points, no fluff. Drop anything that only mattered for already-scored questions. Max 10 bullets.
+
+Format:
+- fact 1
+- fact 2`;
+
+  try {
+    const result = await callBedrock(
+      'You are a concise summarizer. Return only bullet points.',
+      [{ role: 'user', content: prompt }],
+      modelId,
+      region,
+    );
+    return result.trim();
+  } catch (err) {
+    console.error('Running context refresh failed:', err);
+    return state.runningContext; // keep previous context on failure
   }
 }
 

@@ -9,6 +9,7 @@ import {
   createSession,
   processMessage,
   agentResultsToFormData,
+  checkBedrockAccess,
   SECTIONS as AGENT_SECTIONS,
   type AgentSessionState,
 } from './interview-agent.js';
@@ -245,8 +246,8 @@ function scanPage(): string {
 </div>
 <div class="card">
   <h2>Option B: Import Previous Scan Results</h2>
-  <p class="subtitle" style="margin-bottom:12px">Upload a JSON file from a previous scan to skip straight to the interview.</p>
-  <form id="importForm" method="POST" action="/import" enctype="multipart/form-data">
+  <p class="subtitle" style="margin-bottom:12px">Upload a JSON file from a previous scan to view results and continue to the interview.</p>
+  <form id="importForm" method="POST" action="/import">
     <input type="file" id="importFile" accept=".json" style="margin-bottom:12px" required>
     <input type="hidden" id="importData" name="importData">
     <button type="submit">Import &amp; Start Interview →</button>
@@ -257,17 +258,21 @@ function scanPage(): string {
 document.getElementById('scanForm').addEventListener('submit', function() {
   document.getElementById('spinner').classList.remove('hidden');
 });
+window.addEventListener('pageshow', function() {
+  document.getElementById('spinner').classList.add('hidden');
+});
 document.getElementById('importForm').addEventListener('submit', function(e) {
   var fileInput = document.getElementById('importFile');
   if (!fileInput.files || !fileInput.files[0]) { e.preventDefault(); alert('Select a JSON file first.'); return; }
   e.preventDefault();
+  var form = this;
   var reader = new FileReader();
   reader.onload = function(ev) {
     try {
       var data = JSON.parse(ev.target.result);
       if (!data.repoName || !data.categories) { alert('Invalid scan JSON. Expected a PRISM scanner output file.'); return; }
       document.getElementById('importData').value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-      e.target.submit();
+      form.submit();
     } catch(err) { alert('Could not parse JSON: ' + err.message); }
   };
   reader.readAsText(fileInput.files[0]);
@@ -276,7 +281,7 @@ document.getElementById('importForm').addEventListener('submit', function(e) {
 </body></html>`;
 }
 
-function scanResultsPage(scan: ScanResultJSON): string {
+function scanResultsPage(scan: ScanResultJSON, imported: boolean = false): string {
   const catRows = scan.categories.map(c => {
     const pct = c.maxPoints > 0 ? Math.round((c.earnedPoints / c.maxPoints) * 100) : 0;
     const cls = pct >= 60 ? 'green' : pct >= 30 ? 'amber' : 'red';
@@ -317,13 +322,73 @@ function scanResultsPage(scan: ScanResultJSON): string {
 
 ${recsHtml ? `<div class="card"><h2>Recommendations</h2><ul>${recsHtml}</ul></div>` : ''}
 
-<div class="card" style="display:flex;gap:12px">
-  <form method="POST" action="/export-json"><input type="hidden" name="scanData" value="${scanB64}">
-    <button type="submit" class="secondary">Export JSON</button></form>
-  <form method="POST" action="/interview"><input type="hidden" name="scanData" value="${scanB64}">
-    <button type="submit">Continue to Manual Interview →</button></form>
-  <form method="POST" action="/interview-agent"><input type="hidden" name="scanData" value="${scanB64}">
-    <button type="submit" style="background:linear-gradient(135deg,#7c3aed,#0066ff)">🤖 AI Agent Interview →</button></form>
+<div class="card">
+  <h2>Next Steps</h2>
+  <p style="color:#475569;font-size:14px;line-height:1.7;margin-bottom:16px">The scanner covers 40% of the assessment. The remaining 60% comes from a structured interview (40%) and org readiness check (20%). The interview takes <strong>30–60 minutes</strong> and covers AI tooling, workflow, CI/CD, metrics, governance, and org culture. You have three options:</p>
+  <div style="display:grid;grid-template-columns:${imported ? '1fr 1fr' : '1fr 1fr 1fr'};gap:12px">
+    ${imported ? '' : `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:8px">📤</div>
+      <div style="font-weight:600;margin-bottom:4px">Hand off to SA</div>
+      <p class="subtitle" style="margin-bottom:12px">Export the scan results and send them to your Solutions Architect to conduct the interview.</p>
+      <form method="POST" action="/export-json"><input type="hidden" name="scanData" value="${scanB64}">
+        <button type="submit" class="secondary" style="width:100%">Export JSON</button></form>
+    </div>`}
+    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:8px">📋</div>
+      <div style="font-weight:600;margin-bottom:4px">Manual Interview</div>
+      <p class="subtitle" style="margin-bottom:12px">Fill out the scoring form yourself using the rubrics. Best if you're the SA running the assessment.</p>
+      <form method="POST" action="/interview"><input type="hidden" name="scanData" value="${scanB64}">
+        <button type="submit" style="width:100%">Manual Form →</button></form>
+    </div>
+    <div style="border:1px solid #7c3aed;border-radius:8px;padding:16px;text-align:center;background:#faf5ff">
+      <div style="font-size:24px;margin-bottom:8px">🤖</div>
+      <div style="font-weight:600;margin-bottom:4px">AI Agent Interview</div>
+      <p class="subtitle" style="margin-bottom:8px">An AI agent conducts the interview conversationally and scores your responses automatically.</p>
+      <p style="font-size:12px;color:#7c3aed;margin-bottom:12px">Requires Amazon Bedrock access · <a href="#" onclick="document.getElementById('bedrockModal').classList.remove('hidden');return false" style="color:#7c3aed;text-decoration:underline">Setup guide</a></p>
+      <form method="POST" action="/interview-agent"><input type="hidden" name="scanData" value="${scanB64}">
+        <button type="submit" style="width:100%;background:linear-gradient(135deg,#7c3aed,#0066ff)">Start AI Interview →</button></form>
+    </div>
+  </div>
+</div>
+
+<div id="bedrockModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div style="background:#fff;border-radius:12px;max-width:560px;width:90%;max-height:85vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;border:none;padding:0">Bedrock Setup Guide</h2>
+      <button onclick="document.getElementById('bedrockModal').classList.add('hidden')" style="background:none;color:#64748b;font-size:20px;padding:4px 8px;cursor:pointer">✕</button>
+    </div>
+    <p style="color:#475569;font-size:14px;margin-bottom:16px">The AI interview agent uses <strong>Amazon Bedrock</strong> to run Claude locally. It calls the model from your machine using your AWS credentials — nothing is deployed or hosted.</p>
+    <div style="background:#f8fafc;border-radius:8px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:6px">Model Used</div>
+      <code style="font-size:14px;color:#7c3aed">us.anthropic.claude-sonnet-4-6</code>
+      <p style="font-size:12px;color:#64748b;margin-top:4px">Claude Sonnet 4.6 via cross-region inference (US)</p>
+    </div>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">1. Enable model access</h3>
+    <ol style="font-size:13px;color:#475569;padding-left:20px;margin-bottom:16px;line-height:1.8">
+      <li>Open the <a href="https://console.aws.amazon.com/bedrock/home#/modelaccess" target="_blank" style="color:#0066ff">Bedrock Model Access</a> page in the AWS Console</li>
+      <li>Click <strong>Manage model access</strong></li>
+      <li>Find <strong>Anthropic → Claude Sonnet 4.6</strong> and enable it</li>
+      <li>Wait for status to show "Access granted" (usually instant)</li>
+    </ol>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">2. Configure AWS credentials</h3>
+    <p style="font-size:13px;color:#475569;margin-bottom:8px">Any of these methods work:</p>
+    <div style="background:#1e293b;color:#e2e8f0;border-radius:6px;padding:12px;font-size:12px;font-family:monospace;margin-bottom:8px;line-height:1.6">
+      <span style="color:#94a3b8"># Option A: AWS CLI (recommended)</span><br>
+      aws configure<br><br>
+      <span style="color:#94a3b8"># Option B: SSO</span><br>
+      aws sso login --profile your-profile<br><br>
+      <span style="color:#94a3b8"># Option C: Environment variables</span><br>
+      export AWS_ACCESS_KEY_ID=AKIA...<br>
+      export AWS_SECRET_ACCESS_KEY=...<br>
+      export AWS_REGION=us-west-2
+    </div>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">3. Start the interview</h3>
+    <p style="font-size:13px;color:#475569;margin-bottom:16px">Once model access is enabled and credentials are configured, click "Start AI Interview" on the scan results page. The agent will verify your access automatically before beginning.</p>
+    <p style="font-size:12px;color:#64748b">The agent will verify your access when the interview starts. If something is misconfigured, you'll see specific instructions on what to fix.</p>
+    <div style="text-align:center;margin-top:16px">
+      <button onclick="document.getElementById('bedrockModal').classList.add('hidden')">Got it</button>
+    </div>
+  </div>
 </div>
 </div></body></html>`;
 }
@@ -600,13 +665,13 @@ function agentInterviewPage(scan: ScanResultJSON): string {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AI Interview — ${scan.repoName}</title><style>${PAGE_STYLE}
-  .chat-container{display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:500px}
-  .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .chat-container{display:flex;flex-direction:column;flex:1;min-height:0}
+  .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0}
   .msg{max-width:80%;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.6;word-wrap:break-word}
   .msg-assistant{background:#f0f4ff;color:#1e293b;align-self:flex-start;border-bottom-left-radius:4px}
   .msg-user{background:linear-gradient(135deg,#0066ff,#7c3aed);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
   .msg-assistant strong{color:#0066ff}
-  .chat-input-area{display:flex;gap:8px;padding:16px;border-top:1px solid #e2e8f0;background:#fff}
+  .chat-input-area{display:flex;gap:8px;padding:16px;border-top:1px solid #e2e8f0;background:#fff;flex-shrink:0}
   .chat-input-area textarea{flex:1;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;resize:none;min-height:44px;max-height:120px;font-family:inherit;line-height:1.5}
   .chat-input-area textarea:focus{outline:none;border-color:#0066ff;box-shadow:0 0 0 3px rgba(0,102,255,.1)}
   .chat-input-area button{align-self:flex-end}
@@ -616,18 +681,44 @@ function agentInterviewPage(scan: ScanResultJSON): string {
   .typing-indicator span:nth-child(2){animation-delay:.2s}
   .typing-indicator span:nth-child(3){animation-delay:.4s}
   @keyframes bounce{to{transform:translateY(-6px);opacity:.4}}
-  .progress-bar-wrap{display:flex;align-items:center;gap:12px;padding:8px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b}
+  .progress-bar-wrap{display:flex;align-items:center;gap:12px;padding:8px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;flex-shrink:0}
   .progress-bar-wrap .progress-bg{flex:1;max-width:300px}
   .agent-complete-bar{padding:16px;background:#f0fdf4;border-top:1px solid #bbf7d0;text-align:center}
-</style></head><body><div class="page" style="padding-bottom:0">
-<h1>AI-Assisted Interview: ${scan.repoName}</h1>
-<p class="subtitle">Scanner score: ${scan.totalScore}/${scan.maxScore} (${scan.prismLevel.level}) · The AI agent will conduct the interview conversationally</p>
+  .status-panel{display:flex;gap:6px;padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;align-items:center;flex-shrink:0}
+  .status-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;border:1px solid #e2e8f0;background:#fff;color:#64748b;transition:all .3s}
+  .status-chip.active{border-color:#0066ff;background:#eff6ff;color:#0066ff;font-weight:600}
+  .status-chip.done{border-color:#22c55e;background:#f0fdf4;color:#16a34a}
+  .status-chip .chip-icon{font-size:11px}
+  .info-bar{display:flex;gap:16px;padding:8px 16px;background:#fefce8;border-bottom:1px solid #fef08a;font-size:12px;color:#854d0e;flex-wrap:wrap;flex-shrink:0}
+  .info-bar.complete{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+  .info-item{display:inline-flex;align-items:center;gap:4px}
+  .info-item .check{color:#22c55e}
+  .info-item .missing{color:#f59e0b}
+</style></head><body><div class="page" style="padding-bottom:0;height:100vh;display:flex;flex-direction:column;overflow:hidden">
+<h1 style="flex-shrink:0">AI-Assisted Interview: ${scan.repoName}</h1>
+<p class="subtitle" style="flex-shrink:0">Scanner score: ${scan.totalScore}/${scan.maxScore} (${scan.prismLevel.level}) · The AI agent will conduct the interview conversationally</p>
 
-<div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+<div class="card" style="margin-top:16px;padding:0;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0">
+  <div class="status-panel" id="statusPanel">
+    <span class="status-chip active" id="chip-intro"><span class="chip-icon">●</span> Info</span>
+    <span class="status-chip" id="chip-s1"><span class="chip-icon">○</span> AI Tooling</span>
+    <span class="status-chip" id="chip-s2"><span class="chip-icon">○</span> Workflow</span>
+    <span class="status-chip" id="chip-s3"><span class="chip-icon">○</span> CI/CD</span>
+    <span class="status-chip" id="chip-s4"><span class="chip-icon">○</span> Metrics</span>
+    <span class="status-chip" id="chip-s5"><span class="chip-icon">○</span> Governance</span>
+    <span class="status-chip" id="chip-s6"><span class="chip-icon">○</span> Org</span>
+    <span class="status-chip" id="chip-readiness"><span class="chip-icon">○</span> Readiness</span>
+  </div>
+  <div class="info-bar" id="infoBar">
+    <span class="info-item" id="info-name"><span class="missing">○</span> Company</span>
+    <span class="info-item" id="info-team"><span class="missing">○</span> Team size</span>
+    <span class="info-item" id="info-funding"><span class="missing">○</span> Funding</span>
+    <span style="margin-left:auto;font-size:11px;color:#a16207" id="infoHint">Collecting background info...</span>
+  </div>
   <div class="progress-bar-wrap">
     <span id="progressLabel">Starting interview...</span>
     <div class="progress-bg"><div id="progressFill" class="progress-fill fill-green" style="width:0%"></div></div>
-    <span id="progressPct">0%</span>
+    <span id="progressPct">0/20</span>
   </div>
 
   <div class="chat-container">
@@ -645,10 +736,6 @@ function agentInterviewPage(scan: ScanResultJSON): string {
     </div>
   </div>
 </div>
-
-<div style="text-align:center;padding:12px">
-  <a href="/" style="color:#64748b;font-size:13px;text-decoration:none">← Start Over</a>
-</div>
 </div>
 
 <script>
@@ -662,8 +749,24 @@ fetch('/api/agent/init', {
   headers: {'Content-Type':'application/json'},
   body: JSON.stringify({ sessionId: sessionId, scanData: scanB64 })
 }).then(function(r) { return r.json(); }).then(function(data) {
+  if (data.setupError) {
+    // Show setup instructions instead of chat
+    var container = document.getElementById('chatMessages');
+    container.innerHTML = '<div style="padding:24px;max-width:600px;margin:0 auto">'
+      + '<div style="text-align:center;font-size:48px;margin-bottom:16px">⚠️</div>'
+      + '<h2 style="text-align:center;margin-bottom:16px;color:#ef4444">Bedrock Access Required</h2>'
+      + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:20px;font-size:14px;line-height:1.7">'
+      + data.instructions
+      + '</div>'
+      + '<div style="text-align:center;margin-top:20px">'
+      + '<button onclick="location.reload()" style="margin-right:8px">🔄 Retry</button>'
+      + '<a href="/"><button type="button" class="secondary">← Back to Scanner</button></a>'
+      + '</div></div>';
+    document.getElementById('inputArea').classList.add('hidden');
+    return;
+  }
   if (data.reply) appendMessage('assistant', data.reply);
-  updateProgress(data.progress || 0, data.progressLabel || '');
+  updateProgress(data.progress || 0, data.progressLabel || '', data.status || null);
 }).catch(function(err) {
   appendMessage('assistant', 'Error initializing interview agent: ' + err.message + '. Make sure you have AWS credentials configured with Bedrock access.');
 });
@@ -680,10 +783,70 @@ function appendMessage(role, text) {
   container.scrollTop = container.scrollHeight;
 }
 
-function updateProgress(pct, label) {
+function updateProgress(pct, label, status) {
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+  document.getElementById('progressPct').textContent = (status ? status.questionsAnswered || 0 : 0) + '/20';
   if (label) document.getElementById('progressLabel').textContent = label;
+
+  if (!status) return;
+
+  // Update info bar
+  var infoBar = document.getElementById('infoBar');
+  var fields = [
+    { id: 'info-name', key: 'customerName', label: 'Company' },
+    { id: 'info-team', key: 'teamSize', label: 'Team size' },
+    { id: 'info-funding', key: 'fundingStage', label: 'Funding' },
+  ];
+  var allCollected = true;
+  fields.forEach(function(f) {
+    var el = document.getElementById(f.id);
+    var val = status[f.key];
+    if (val && val !== 'Unknown' && val !== '' && val !== 0 && val !== '0') {
+      el.innerHTML = '<span class="check">✓</span> ' + f.label + ': <strong>' + val + '</strong>';
+    } else {
+      el.innerHTML = '<span class="missing">○</span> ' + f.label;
+      allCollected = false;
+    }
+  });
+  var hint = document.getElementById('infoHint');
+  if (allCollected) {
+    infoBar.className = 'info-bar complete';
+    hint.textContent = '✓ All info collected';
+    hint.style.color = '#166534';
+  } else if (status.phase !== 'intro') {
+    hint.textContent = '';
+  }
+
+  // Update phase chips
+  var chipMap = {
+    'intro': 'chip-intro',
+    's1': 'chip-s1', 's2': 'chip-s2', 's3': 'chip-s3',
+    's4': 'chip-s4', 's5': 'chip-s5', 's6': 'chip-s6',
+    'readiness': 'chip-readiness',
+  };
+  // Reset all chips
+  Object.values(chipMap).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.className = 'status-chip'; el.querySelector('.chip-icon').textContent = '○'; }
+  });
+
+  // Mark completed phases
+  if (status.completedSections) {
+    status.completedSections.forEach(function(s) {
+      var el = document.getElementById(chipMap[s]);
+      if (el) { el.className = 'status-chip done'; el.querySelector('.chip-icon').textContent = '✓'; }
+    });
+  }
+
+  // Mark active phase
+  var activeChip = status.activeChip;
+  if (activeChip && chipMap[activeChip]) {
+    var el = document.getElementById(chipMap[activeChip]);
+    if (el && !el.classList.contains('done')) {
+      el.className = 'status-chip active';
+      el.querySelector('.chip-icon').textContent = '●';
+    }
+  }
 }
 
 function sendMessage() {
@@ -713,7 +876,7 @@ function sendMessage() {
     }
 
     appendMessage('assistant', data.reply);
-    updateProgress(data.progress || 0, data.progressLabel || '');
+    updateProgress(data.progress || 0, data.progressLabel || '', data.status || null);
 
     if (data.done) {
       isDone = true;
@@ -777,6 +940,55 @@ function send(res: ServerResponse, status: number, contentType: string, body: st
 }
 
 // ---------------------------------------------------------------------------
+// Agent status builder — provides rich status for the chat UI
+// ---------------------------------------------------------------------------
+
+const SECTION_CHIP_IDS = ['s1', 's2', 's3', 's4', 's5', 's6'];
+
+function buildAgentStatus(state: AgentSessionState) {
+  const totalQuestions = AGENT_SECTIONS.reduce((sum, s) => sum + s.questions.length, 0);
+  const answered = state.results.length;
+
+  // Determine which sections are complete
+  const completedSections: string[] = [];
+  // Intro is done once we leave intro phase
+  if (state.phase !== 'intro') completedSections.push('intro');
+
+  // Check each interview section
+  for (let i = 0; i < AGENT_SECTIONS.length; i++) {
+    const sec = AGENT_SECTIONS[i];
+    const sectionDone = sec.questions.every(q => state.results.some(r => r.questionId === q.id));
+    if (sectionDone) completedSections.push(SECTION_CHIP_IDS[i]);
+  }
+
+  // Org readiness done if we're past it
+  if (state.phase === 'closing' || state.phase === 'complete') {
+    completedSections.push('readiness');
+  }
+
+  // Determine active chip
+  let activeChip = 'intro';
+  if (state.phase === 'interview') {
+    activeChip = SECTION_CHIP_IDS[state.currentSectionIdx] || 's1';
+  } else if (state.phase === 'org_readiness') {
+    activeChip = 'readiness';
+  } else if (state.phase === 'closing' || state.phase === 'complete') {
+    activeChip = 'readiness'; // will be marked done
+  }
+
+  return {
+    phase: state.phase,
+    questionsAnswered: answered,
+    totalQuestions,
+    customerName: state.customerName || '',
+    teamSize: state.teamSize || 0,
+    fundingStage: state.fundingStage || '',
+    completedSections,
+    activeChip,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 function startServer(port: number) {
@@ -791,10 +1003,24 @@ function startServer(port: number) {
       if (req.method === 'POST' && url === '/scan') {
         const form = await parseFormBody(req);
         const repoPath = form.repoPath?.trim();
-        if (!repoPath) return send(res, 400, 'text/html', '<h1>Repository path is required</h1>');
-        if (!existsSync(repoPath)) return send(res, 400, 'text/html', `<h1>Path not found: ${repoPath}</h1>`);
-        const scan = await runScan(repoPath, { output: 'json' });
-        return send(res, 200, 'text/html', scanResultsPage(scan));
+
+        const scanError = (title: string, detail: string) =>
+          send(res, 400, 'text/html', `<!DOCTYPE html><html><head><style>${PAGE_STYLE}</style></head><body><div class="page">
+            <div class="card" style="border-left:4px solid #ef4444">
+              <h2 style="color:#ef4444">${title}</h2>
+              <p style="margin:12px 0;color:#475569">${detail}</p>
+              <button onclick="history.back()">← Go Back</button>
+            </div></div></body></html>`);
+
+        if (!repoPath) return scanError('Repository path is required', 'Please enter the full path to a local git repository.');
+        if (!existsSync(repoPath)) return scanError('Path not found', `The directory <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">${repoPath}</code> does not exist. Check for typos or trailing characters.`);
+
+        try {
+          const scan = await runScan(repoPath, { output: 'json' });
+          return send(res, 200, 'text/html', scanResultsPage(scan));
+        } catch (err: any) {
+          return scanError('Scan failed', `Something went wrong while scanning <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">${repoPath}</code>:<br><pre style="margin-top:8px;padding:12px;background:#f8fafc;border-radius:6px;font-size:13px;overflow-x:auto">${err.message || err}</pre>`);
+        }
       }
 
       if (req.method === 'POST' && url === '/export-json') {
@@ -816,7 +1042,7 @@ function startServer(port: number) {
           if (!scan.repoName || !scan.categories) {
             return send(res, 400, 'text/html', '<h1>Invalid scan JSON — missing repoName or categories</h1>');
           }
-          return send(res, 200, 'text/html', interviewPage(scan));
+          return send(res, 200, 'text/html', scanResultsPage(scan, true));
         } catch {
           return send(res, 400, 'text/html', '<h1>Could not parse imported scan data</h1>');
         }
@@ -884,6 +1110,25 @@ function startServer(port: number) {
       if (req.method === 'POST' && url === '/api/agent/init') {
         const body = await parseJsonBody(req);
         const { sessionId, scanData } = body;
+
+        // Pre-flight check: verify Bedrock access before starting
+        const check = await checkBedrockAccess(body.modelId, body.region);
+        if (!check.ok) {
+          const instructions: Record<string, string> = {
+            sdk_missing: `The AWS SDK is not installed.<br><br>Run this in the <code>cli/</code> directory:<pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px">npm install @aws-sdk/client-bedrock-runtime</pre>Then restart the server and try again.`,
+            no_credentials: `No AWS credentials found. The agent needs credentials with Bedrock access.<br><br><strong>Option 1 — AWS CLI profile:</strong><pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px">aws configure</pre><strong>Option 2 — Environment variables:</strong><pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px">export AWS_ACCESS_KEY_ID=your-key\nexport AWS_SECRET_ACCESS_KEY=your-secret\nexport AWS_REGION=us-west-2</pre><strong>Option 3 — SSO:</strong><pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px">aws sso login --profile your-profile</pre>After configuring credentials, restart the server and try again.`,
+            no_model_access: `Bedrock model access denied.<br><br><strong>To enable model access:</strong><ol style="margin:8px 0;padding-left:20px"><li>Go to the <a href="https://console.aws.amazon.com/bedrock/home#/modelaccess" target="_blank" style="color:#0066ff">Amazon Bedrock Model Access</a> page</li><li>Click "Manage model access"</li><li>Enable <strong>Anthropic → Claude Sonnet 4.6</strong> (or the model you want to use)</li><li>Wait for access to be granted (usually instant)</li></ol>Then restart the server and try again.<br><br><span style="color:#64748b;font-size:12px">Error: ${check.error}</span>`,
+            wrong_region: `The model is not available in the configured region.<br><br>Try a different region by setting <code>AWS_REGION</code>:<pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px">export AWS_REGION=us-east-1</pre>Or use a cross-region inference ID like <code>us.anthropic.claude-sonnet-4-6</code>.<br><br><span style="color:#64748b;font-size:12px">Error: ${check.error}</span>`,
+            unknown: `An unexpected error occurred while connecting to Bedrock.<br><br><pre style="margin:8px 0;padding:10px;background:#1e293b;color:#e2e8f0;border-radius:6px;white-space:pre-wrap">${check.error}</pre>Check your AWS credentials and Bedrock model access, then restart the server.`,
+          };
+
+          return send(res, 200, 'application/json', JSON.stringify({
+            setupError: true,
+            errorType: check.errorType,
+            instructions: instructions[check.errorType || 'unknown'] || instructions.unknown,
+          }));
+        }
+
         try {
           const scan = JSON.parse(Buffer.from(scanData, 'base64').toString());
           const session = createSession(scan);
@@ -902,6 +1147,7 @@ function startServer(port: number) {
             done: result.done,
             progress,
             progressLabel: 'Introduction',
+            status: buildAgentStatus(result.state),
           }));
         } catch (err: any) {
           return send(res, 500, 'application/json', JSON.stringify({
@@ -945,6 +1191,7 @@ function startServer(port: number) {
             done: result.done,
             progress: Math.min(100, progress),
             progressLabel,
+            status: buildAgentStatus(result.state),
           }));
         } catch (err: any) {
           return send(res, 500, 'application/json', JSON.stringify({

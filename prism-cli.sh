@@ -62,10 +62,10 @@ if [ "$NODE_MAJOR" -lt "$REQUIRED_NODE_MAJOR" ]; then
 fi
 
 # Install or update dependencies if needed
-PRISM_CLI_DIR="$SCRIPT_DIR/prism-cli"
+PRISM_CLI_DIR="$SCRIPT_DIR/cli"
 if [ ! -d "$PRISM_CLI_DIR/node_modules" ] || [ "$PRISM_CLI_DIR/package.json" -nt "$PRISM_CLI_DIR/node_modules/.package-lock.json" ]; then
   echo "Installing prism-cli dependencies..."
   (cd "$PRISM_CLI_DIR" && npm install --silent)
 fi
 
-exec npx --prefix "$SCRIPT_DIR/prism-cli" tsx "$SCRIPT_DIR/prism-cli/bin/prism-cli.ts" "$@"
+exec npx --prefix "$SCRIPT_DIR/cli" tsx "$SCRIPT_DIR/cli/bin/prism-cli.ts" "$@"
