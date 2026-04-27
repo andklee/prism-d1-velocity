@@ -5,6 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { runScan } from '../../scanner/index.js';
 import type { ScanResult } from '../../scanner/types.js';
+import {
+  createSession,
+  processMessage,
+  agentResultsToFormData,
+  SECTIONS as AGENT_SECTIONS,
+  type AgentSessionState,
+} from './interview-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -314,7 +321,9 @@ ${recsHtml ? `<div class="card"><h2>Recommendations</h2><ul>${recsHtml}</ul></di
   <form method="POST" action="/export-json"><input type="hidden" name="scanData" value="${scanB64}">
     <button type="submit" class="secondary">Export JSON</button></form>
   <form method="POST" action="/interview"><input type="hidden" name="scanData" value="${scanB64}">
-    <button type="submit">Continue to Interview →</button></form>
+    <button type="submit">Continue to Manual Interview →</button></form>
+  <form method="POST" action="/interview-agent"><input type="hidden" name="scanData" value="${scanB64}">
+    <button type="submit" style="background:linear-gradient(135deg,#7c3aed,#0066ff)">🤖 AI Agent Interview →</button></form>
 </div>
 </div></body></html>`;
 }
@@ -579,6 +588,160 @@ ${scan.recommendations.length > 0 ? `<div class="card"><h2>Recommendations</h2><
 }
 
 // ---------------------------------------------------------------------------
+// Agent interview — chat UI and session management
+// ---------------------------------------------------------------------------
+
+// In-memory session store (single-user local tool, so this is fine)
+const agentSessions = new Map<string, AgentSessionState>();
+
+function agentInterviewPage(scan: ScanResultJSON): string {
+  const scanB64 = Buffer.from(JSON.stringify(scan)).toString('base64');
+  const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Interview — ${scan.repoName}</title><style>${PAGE_STYLE}
+  .chat-container{display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:500px}
+  .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:80%;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.6;word-wrap:break-word}
+  .msg-assistant{background:#f0f4ff;color:#1e293b;align-self:flex-start;border-bottom-left-radius:4px}
+  .msg-user{background:linear-gradient(135deg,#0066ff,#7c3aed);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  .msg-assistant strong{color:#0066ff}
+  .chat-input-area{display:flex;gap:8px;padding:16px;border-top:1px solid #e2e8f0;background:#fff}
+  .chat-input-area textarea{flex:1;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;resize:none;min-height:44px;max-height:120px;font-family:inherit;line-height:1.5}
+  .chat-input-area textarea:focus{outline:none;border-color:#0066ff;box-shadow:0 0 0 3px rgba(0,102,255,.1)}
+  .chat-input-area button{align-self:flex-end}
+  .chat-input-area button:disabled{opacity:.5;cursor:not-allowed}
+  .typing-indicator{display:flex;gap:4px;padding:8px 16px;align-self:flex-start}
+  .typing-indicator span{width:8px;height:8px;background:#94a3b8;border-radius:50%;animation:bounce .6s infinite alternate}
+  .typing-indicator span:nth-child(2){animation-delay:.2s}
+  .typing-indicator span:nth-child(3){animation-delay:.4s}
+  @keyframes bounce{to{transform:translateY(-6px);opacity:.4}}
+  .progress-bar-wrap{display:flex;align-items:center;gap:12px;padding:8px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b}
+  .progress-bar-wrap .progress-bg{flex:1;max-width:300px}
+  .agent-complete-bar{padding:16px;background:#f0fdf4;border-top:1px solid #bbf7d0;text-align:center}
+</style></head><body><div class="page" style="padding-bottom:0">
+<h1>AI-Assisted Interview: ${scan.repoName}</h1>
+<p class="subtitle">Scanner score: ${scan.totalScore}/${scan.maxScore} (${scan.prismLevel.level}) · The AI agent will conduct the interview conversationally</p>
+
+<div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+  <div class="progress-bar-wrap">
+    <span id="progressLabel">Starting interview...</span>
+    <div class="progress-bg"><div id="progressFill" class="progress-fill fill-green" style="width:0%"></div></div>
+    <span id="progressPct">0%</span>
+  </div>
+
+  <div class="chat-container">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div id="typingIndicator" class="typing-indicator hidden"><span></span><span></span><span></span></div>
+    <div class="chat-input-area" id="inputArea">
+      <textarea id="userInput" placeholder="Type your response..." rows="2"></textarea>
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+    <div id="completeBar" class="agent-complete-bar hidden">
+      <form method="POST" action="/agent-report">
+        <input type="hidden" name="sessionId" id="sessionIdInput" value="${sessionId}">
+        <button type="submit">View Full Report →</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:12px">
+  <a href="/" style="color:#64748b;font-size:13px;text-decoration:none">← Start Over</a>
+</div>
+</div>
+
+<script>
+var sessionId = '${sessionId}';
+var scanB64 = '${scanB64}';
+var isDone = false;
+
+// Initialize session
+fetch('/api/agent/init', {
+  method: 'POST',
+  headers: {'Content-Type':'application/json'},
+  body: JSON.stringify({ sessionId: sessionId, scanData: scanB64 })
+}).then(function(r) { return r.json(); }).then(function(data) {
+  if (data.reply) appendMessage('assistant', data.reply);
+  updateProgress(data.progress || 0, data.progressLabel || '');
+}).catch(function(err) {
+  appendMessage('assistant', 'Error initializing interview agent: ' + err.message + '. Make sure you have AWS credentials configured with Bedrock access.');
+});
+
+function appendMessage(role, text) {
+  var container = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'msg msg-' + role;
+  // Simple markdown-ish rendering
+  div.innerHTML = text
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/\\n/g, '<br>');
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function updateProgress(pct, label) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+  if (label) document.getElementById('progressLabel').textContent = label;
+}
+
+function sendMessage() {
+  if (isDone) return;
+  var input = document.getElementById('userInput');
+  var text = input.value.trim();
+  if (!text) return;
+
+  appendMessage('user', text);
+  input.value = '';
+  input.disabled = true;
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('typingIndicator').classList.remove('hidden');
+
+  fetch('/api/agent/chat', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ sessionId: sessionId, message: text })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    document.getElementById('typingIndicator').classList.add('hidden');
+    input.disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+
+    if (data.error) {
+      appendMessage('assistant', 'Error: ' + data.error);
+      return;
+    }
+
+    appendMessage('assistant', data.reply);
+    updateProgress(data.progress || 0, data.progressLabel || '');
+
+    if (data.done) {
+      isDone = true;
+      document.getElementById('inputArea').classList.add('hidden');
+      document.getElementById('completeBar').classList.remove('hidden');
+    } else {
+      input.focus();
+    }
+  }).catch(function(err) {
+    document.getElementById('typingIndicator').classList.add('hidden');
+    input.disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    appendMessage('assistant', 'Connection error: ' + err.message);
+  });
+}
+
+// Send on Enter (Shift+Enter for newline)
+document.getElementById('userInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+</script>
+</body></html>`;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 function parseFormBody(req: IncomingMessage): Promise<Record<string, string>> {
@@ -592,6 +755,17 @@ function parseFormBody(req: IncomingMessage): Promise<Record<string, string>> {
         if (k) params[decodeURIComponent(k)] = decodeURIComponent((v || '').replace(/\+/g, ' '));
       }
       resolve(params);
+    });
+    req.on('error', reject);
+  });
+}
+
+function parseJsonBody(req: IncomingMessage): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
     });
     req.on('error', reject);
   });
@@ -697,6 +871,116 @@ function startServer(port: number) {
 
         const blended = computeBlended(scan.totalScore, scan.maxScore, interviewTotal, org);
         return send(res, 200, 'text/html', reportPage(scan, form, blended));
+      }
+
+      // --- Agent interview routes ---
+
+      if (req.method === 'POST' && url === '/interview-agent') {
+        const form = await parseFormBody(req);
+        const scan = JSON.parse(Buffer.from(form.scanData, 'base64').toString());
+        return send(res, 200, 'text/html', agentInterviewPage(scan));
+      }
+
+      if (req.method === 'POST' && url === '/api/agent/init') {
+        const body = await parseJsonBody(req);
+        const { sessionId, scanData } = body;
+        try {
+          const scan = JSON.parse(Buffer.from(scanData, 'base64').toString());
+          const session = createSession(scan);
+          agentSessions.set(sessionId, session);
+
+          // Send the first message (greeting)
+          const result = await processMessage(session, '', body.modelId, body.region);
+          agentSessions.set(sessionId, result.state);
+
+          const totalQuestions = AGENT_SECTIONS.reduce((sum, s) => sum + s.questions.length, 0);
+          const answered = result.state.results.length;
+          const progress = (answered / totalQuestions) * 100;
+
+          return send(res, 200, 'application/json', JSON.stringify({
+            reply: result.reply,
+            done: result.done,
+            progress,
+            progressLabel: 'Introduction',
+          }));
+        } catch (err: any) {
+          return send(res, 500, 'application/json', JSON.stringify({
+            error: err.message || 'Failed to initialize agent session',
+          }));
+        }
+      }
+
+      if (req.method === 'POST' && url === '/api/agent/chat') {
+        const body = await parseJsonBody(req);
+        const { sessionId, message, modelId, region } = body;
+        const session = agentSessions.get(sessionId);
+        if (!session) {
+          return send(res, 400, 'application/json', JSON.stringify({
+            error: 'Session not found. Please refresh and start over.',
+          }));
+        }
+
+        try {
+          const result = await processMessage(session, message, modelId, region);
+          agentSessions.set(sessionId, result.state);
+
+          const totalQuestions = AGENT_SECTIONS.reduce((sum, s) => sum + s.questions.length, 0);
+          const answered = result.state.results.length;
+          const progress = (answered / totalQuestions) * 100;
+
+          let progressLabel = 'Introduction';
+          if (result.state.phase === 'interview') {
+            const sec = AGENT_SECTIONS[result.state.currentSectionIdx];
+            progressLabel = sec ? `${sec.name} — Q${result.state.currentQuestionIdx + 1}/${sec.questions.length}` : 'Interview';
+          } else if (result.state.phase === 'org_readiness') {
+            progressLabel = 'Org Readiness';
+          } else if (result.state.phase === 'closing') {
+            progressLabel = 'Closing';
+          } else if (result.state.phase === 'complete') {
+            progressLabel = 'Complete';
+          }
+
+          return send(res, 200, 'application/json', JSON.stringify({
+            reply: result.reply,
+            done: result.done,
+            progress: Math.min(100, progress),
+            progressLabel,
+          }));
+        } catch (err: any) {
+          return send(res, 500, 'application/json', JSON.stringify({
+            error: err.message || 'Agent processing error',
+          }));
+        }
+      }
+
+      if (req.method === 'POST' && url === '/agent-report') {
+        const form = await parseFormBody(req);
+        const session = agentSessions.get(form.sessionId);
+        if (!session) {
+          return send(res, 400, 'text/html', `<h1>Session expired. Please run the interview again.</h1>`);
+        }
+
+        // Convert agent results to the same format as the manual form
+        const formData = agentResultsToFormData(session);
+        const scan: ScanResultJSON = session.scanData;
+
+        let interviewTotal = 0;
+        for (const sec of INTERVIEW_SECTIONS) {
+          for (const q of sec.questions) {
+            interviewTotal += parseInt(formData[q.id] || '0', 10);
+          }
+        }
+
+        const org: Record<string, boolean> = {
+          executiveSponsor: formData.executiveSponsor === 'on',
+          budgetAllocated: formData.budgetAllocated === 'on',
+          dedicatedOwner: formData.dedicatedOwner === 'on',
+          awsRelationship: formData.awsRelationship === 'on',
+          appropriateTeamSize: formData.appropriateTeamSize === 'on',
+        };
+
+        const blended = computeBlended(scan.totalScore, scan.maxScore, interviewTotal, org);
+        return send(res, 200, 'text/html', reportPage(scan, formData, blended));
       }
 
       send(res, 404, 'text/html', '<h1>Not Found</h1>');
