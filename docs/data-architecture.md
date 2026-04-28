@@ -101,15 +101,15 @@ Shell script at `collector/ci-metadata-emitter/emit-metrics.sh` that runs inside
 
 ---
 
-### 6. Bedrock CloudTrail Events (NEW — Pillar 5)
+### 6. Bedrock CloudTrail Events
 
 CloudTrail captures every Bedrock API call (InvokeModel, Converse, etc.) with token counts. An EventBridge rule on the **default** event bus routes these to the `token-processor` Lambda, which enriches with pricing and identity data.
 
-### 7. MCP Tool Call Audit (NEW — Pillar 3)
+### 7. MCP Tool Call Audit
 
 The MCP server's audit logger emits `prism.d1.mcp.tool_call` events to EventBridge for every tool call that requires audit (medium/high risk tools).
 
-### 8. Agent Runtime Metrics (NEW — Pillar 4)
+### 8. Agent Runtime Metrics
 
 Agent invocations emit `prism.d1.agent` events with step counts, tool calls, tokens used, and guardrail triggers. Individual guardrail triggers emit separate `prism.d1.guardrail` events with category, type, and action details.
 
@@ -159,7 +159,7 @@ Every event follows this base structure on EventBridge:
 
 ---
 
-### Extended Event Payloads (Pillars 2-7)
+### Extended Event Payloads
 
 Events may include additional top-level fields depending on their type:
 
@@ -175,7 +175,7 @@ Events may include additional top-level fields depending on their type:
 
 ---
 
-## Specialized Lambda Processors (Pillars 5-7)
+## Specialized Lambda Processors
 
 In addition to the core metrics-processor, five specialized Lambdas handle derived metric calculations:
 
@@ -265,14 +265,14 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | `AgentGuardrailTriggerCount` | Count | Bedrock Guardrail triggers |
 | `AgentSuccessRate` | Percent | 100 if success, 0 if failed |
 
-### Eval Gate Metrics (Pillar 2)
+### Eval Gate Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
 | `EvalGatePassRateByRubric` | Percent | Eval gate workflow, per rubric type |
 | `EvalScore` | None (0-1) | Eval gate workflow, average score |
 
-### Guardrail Metrics (Pillar 4)
+### Guardrail Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
@@ -280,7 +280,7 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | `GuardrailBlockCount` | Count | Content blocked by guardrails |
 | `GuardrailAnonymizeCount` | Count | PII anonymized by guardrails |
 
-### MCP Tool Metrics (Pillar 3)
+### MCP Tool Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
@@ -288,7 +288,7 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | `MCPAuthDeniedCount` | Count | Unauthorized tool call attempts |
 | `MCPToolCallDurationMs` | Milliseconds | Tool execution time |
 
-### Cost & Token Metrics (Pillar 5)
+### Cost & Token Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
@@ -298,14 +298,14 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | `CostPerCommit` | None (USD) | Token-commit-correlator Lambda |
 | `TokenEfficiency` | None | Tokens per line of code changed |
 
-### Quality & Attribution Metrics (Pillar 7)
+### Quality & Attribution Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
 | `PostMergeDefectRateAI` | Percent | Defect-correlator Lambda |
 | `PostMergeDefectRateHuman` | Percent | Defect-correlator Lambda |
 
-### Security Metrics (Pillar 6)
+### Security Metrics
 
 | Metric Name | Unit | Source |
 |------------|------|--------|
@@ -315,16 +315,16 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 
 ## Active Alarms
 
-| Alarm | Metric | Threshold | Period | Pillar |
-|-------|--------|-----------|--------|--------|
-| AI Acceptance Rate Low | AIAcceptanceRate | < 20% | 6 hours | Core |
-| Eval Gate Pass Rate Low | EvalGatePassRate | < 70% | 6 hours | Core |
-| Change Failure Rate High | ChangeFailureRate | > 20% | 6 hours | Core |
-| Agent Success Rate Low | AgentSuccessRate | < 80% | 1 hour | Core |
-| Guardrail Block Rate High | GuardrailBlockCount | > 50 | 1 hour | Pillar 4 |
-| Bedrock Daily Cost High | BedrockCostUSD | > $100 | 1 day | Pillar 5 |
-| Token Efficiency Low | TokenEfficiency | > 500 | 6 hours | Pillar 5 |
-| Exfiltration Alert | ExfiltrationAlertCount | ≥ 1 | 1 hour | Pillar 6 |
+| Alarm | Metric | Threshold | Period |
+|-------|--------|-----------|--------|
+| AI Acceptance Rate Low | AIAcceptanceRate | < 20% | 6 hours |
+| Eval Gate Pass Rate Low | EvalGatePassRate | < 70% | 6 hours |
+| Change Failure Rate High | ChangeFailureRate | > 20% | 6 hours |
+| Agent Success Rate Low | AgentSuccessRate | < 80% | 1 hour |
+| Guardrail Block Rate High | GuardrailBlockCount | > 50 | 1 hour |
+| Bedrock Daily Cost High | BedrockCostUSD | > $100 | 1 day |
+| Token Efficiency Low | TokenEfficiency | > 500 | 6 hours |
+| Exfiltration Alert | ExfiltrationAlertCount | ≥ 1 | 1 hour |
 
 ---
 
@@ -479,7 +479,7 @@ PRISM ships **4 dashboards** across two AWS services, each targeting a specific 
 
 ---
 
-## Token Usage & Cost Tracking (IMPLEMENTED)
+## Token Usage & Cost Tracking
 
 Token consumption and cost tracking is now implemented via the CloudTrail → EventBridge pipeline.
 
@@ -558,7 +558,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | API stack | `infra/lib/api-stack.ts` | API Gateway + Lambda + usage plans |
 | Dashboard stack | `infra/lib/dashboard-stack.ts` | CloudWatch dashboards (2) + alarms (8) |
 
-### Pillar 2: Eval Gates
+### Eval Gates
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -566,7 +566,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Eval runner | `bootstrapper/eval-harness/run-eval.sh` | CLI eval with `--spec` flag |
 | Rubrics (5) | `bootstrapper/eval-harness/rubrics/*.json` | code-quality, api-response, agent, security, spec-compliance |
 
-### Pillar 3: MCP Authorization
+### MCP Authorization
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -576,7 +576,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Audit logger | `sample-app/src/mcp/auth/audit-logger.ts` | EventBridge emission for tool calls |
 | MCP server | `sample-app/src/mcp/server.ts` | Auth middleware integration |
 
-### Pillar 4: Guardrails & Audit
+### Guardrails & Audit
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -584,7 +584,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Agent metrics | `sample-app/agent/src/task_assistant/metrics.py` | Granular guardrail trigger events |
 | Guardrail enforcer | `infra/lib/constructs/guardrail-enforcer-construct.ts` | Lambda layer for runtime enforcement |
 
-### Pillar 5: Cost Intelligence
+### Cost Intelligence
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -594,7 +594,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Token processor | `infra/lib/lambda/token-processor.ts` | CloudTrail → token events |
 | Token-commit correlator | `infra/lib/lambda/token-commit-correlator.ts` | Token → commit cost correlation |
 
-### Pillar 6: IP & Data Protection
+### IP & Data Protection
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -602,7 +602,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Exfiltration detector | `infra/lib/lambda/exfiltration-detector.ts` | Anomalous DynamoDB read detection |
 | KMS encryption | `infra/lib/metrics-pipeline-stack.ts` | Customer-managed key on all tables |
 
-### Pillar 7: AI Attribution
+### AI Attribution
 
 | Component | Location | Purpose |
 |-----------|----------|---------|

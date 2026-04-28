@@ -166,7 +166,7 @@ Contributors: pick any item, open an issue referencing the roadmap ID (e.g., `R-
 
 **Recommended execution order:** Phase 1 → 2 → 2B → 3 → 7 (R-701, R-705) → 4 → 5 → 6 → 8
 
-> **Note:** Pillars 2-7 implementation (2026-04-27) delivered R-101, R-105, R-210-R-213, R-217-R-219 plus guardrail deployment, MCP authorization, VPC/KMS infrastructure, defect correlation, and spec-to-code calculation — work spanning Phases 1, 2B, and new items not originally on this roadmap.
+> **Note (2026-04-27):** R-101, R-105, R-210-R-213, R-217-R-219 completed along with guardrail deployment, MCP authorization, VPC/KMS infrastructure, defect correlation, and spec-to-code calculation.
 
 ---
 
@@ -226,4 +226,4 @@ Have an idea not on the roadmap? Open an issue with the `roadmap-proposal` label
 | `Done` | Merged to main |
 | `Deferred` | Deprioritized — revisit next quarter |
 
-*Items marked ✅ Done were completed in the Pillars 2-7 implementation (2026-04-27). All other items are `Open` unless noted.*
+*Items marked ✅ Done were completed on 2026-04-27. All other items are `Open` unless noted.*
