@@ -67,7 +67,7 @@ export async function handler(event: CloudTrailDynamoDBEvent): Promise<void> {
       timestamp: detail.eventTime,
       prism_level: 1,
       metric: {
-        name: 'exfiltration_alert',
+        name: 'ExfiltrationAlertCount',
         value: current.count,
         unit: 'count',
       },
