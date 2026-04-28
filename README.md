@@ -12,7 +12,7 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 
 ### For Engineering Leaders (Top-Down Visibility)
 
-- **[Executive Readout Dashboard](docs/data-architecture.md#cloudwatch-executive-readout-prism-d1-executive-readout)** — Strategic overview: PRISM level, DORA summary, AI contribution trends, security & compliance posture, cost intelligence
+- **[Executive Readout Dashboard](docs/dashboard-executive.html)** ([spec](docs/data-architecture.md#cloudwatch-executive-readout-prism-d1-executive-readout)) — Strategic overview: PRISM level, DORA summary, AI contribution trends, security & compliance posture, cost intelligence
 - **[PRISM Level Tracker](docs/data-architecture.md#quicksight-prism-level-tracker)** (QuickSight) — Maturity progression by team, radar chart of sub-dimensions, benchmarks by funding stage
 - **[AI-DORA Analysis](docs/data-architecture.md#quicksight-ai-dora-analysis)** (QuickSight) — Deep-dive exploratory analysis across teams, repos, and AI tools with KPI trend cards
 - **Enhanced DORA metrics** with AI-specific dimensions (acceptance rate, AI-to-merge ratio, eval gate pass rate)
@@ -20,7 +20,7 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 
 ### For Engineering Teams (Bottom-Up Activation)
 
-- **[Team Velocity Dashboard](docs/data-architecture.md#cloudwatch-team-velocity-prism-d1-team-velocity)** — Real-time operational view: DORA metrics, eval gate quality by rubric, guardrail safety, MCP tool governance, cost per commit, AI vs human defect rates
+- **[Team Velocity Dashboard](docs/dashboard-team.html)** ([spec](docs/data-architecture.md#cloudwatch-team-velocity-prism-d1-team-velocity)) — Real-time operational view: DORA metrics, eval gate quality by rubric, guardrail safety, MCP tool governance, cost per commit, AI vs human defect rates
 - **4-hour workshop** (+ extensions) with hands-on exercises using Claude Code + Bedrock
 - **Spec-driven development** templates compatible with Kiro
 - **AI agent development** — build agents with Strands SDK, MCP, and Amazon Bedrock AgentCore
