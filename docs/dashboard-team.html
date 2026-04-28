@@ -25,6 +25,27 @@
     .status-dot.green { background: var(--cs-green-600); }
     .status-dot.red { background: var(--cs-red-600); }
     .status-dot.orange { background: var(--cs-orange-600); }
+    /* Info tooltip */
+    .info-tip {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--cs-grey-200); color: var(--cs-grey-600);
+      font-size: 9px; font-weight: 700; font-style: italic; font-family: Georgia, serif;
+      cursor: help; position: relative; vertical-align: middle; margin-left: 4px;
+      line-height: 1;
+    }
+    .info-tip::after {
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: var(--aws-navy); color: var(--cs-white); font-family: var(--cs-font);
+      font-size: 11px; font-weight: 400; font-style: normal;
+      padding: 8px 12px; border-radius: 6px; white-space: normal;
+      width: 240px; line-height: 15px; text-align: left;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      opacity: 0; pointer-events: none; transition: opacity 0.15s;
+      z-index: 100;
+    }
+    .info-tip:hover::after { opacity: 1; }
     .alarm-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--cs-border-divider); font-size:12px; }
     .alarm-row:last-child { border-bottom:none; }
     .alarm-ok { color:var(--cs-green-600); font-weight:600; }
@@ -100,7 +121,7 @@
 
       <div class="dash-panels two">
         <div class="dash-panel">
-          <div class="panel-head"><h3>AI Acceptance Rate</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>AI Acceptance Rate <span class="info-tip" data-tip="Percentage of AI-generated code suggestions accepted by developers. Dropping trend signals review friction or quality issues with AI output. Alarm triggers below 20%.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <text x="0" y="10" font-size="9" fill="#687078">100%</text>
             <text x="0" y="60" font-size="9" fill="#687078">50%</text>
@@ -115,7 +136,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Deployment Frequency</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Deployment Frequency <span class="info-tip" data-tip="Number of production deploys per day. Core DORA velocity metric. Higher is better at L3+. Captured from GitHub deployment events.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <rect x="25" y="60" width="40" height="50" rx="3" fill="#0969da"/>
             <rect x="75" y="45" width="40" height="65" rx="3" fill="#0969da"/>
@@ -137,14 +158,14 @@
 
       <div class="dash-panels three" style="margin-top:12px;">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Lead Time</h3><span class="panel-period">Hourly</span></div>
+          <div class="panel-head"><h3>Lead Time <span class="info-tip" data-tip="Time from PR creation to production deploy in hours. Core DORA metric. Measures how fast code moves through the pipeline. L3 target: < 1 day.">i</span></h3><span class="panel-period">Hourly</span></div>
           <svg class="panel-chart" viewBox="0 0 380 80" fill="none">
             <polyline points="30,55 85,50 140,45 195,48 250,42 305,38 360,35" stroke="#0969da" stroke-width="2" fill="none"/>
             <text x="370" y="32" font-size="9" fill="#0969da" font-weight="600">3.8h</text>
           </svg>
         </div>
         <div class="dash-panel" style="text-align:center; padding:16px;">
-          <div style="font-size:11px; font-weight:700; color:var(--cs-grey-600); text-transform:uppercase; margin-bottom:6px;">Eval Gate Pass Rate</div>
+          <div style="font-size:11px; font-weight:700; color:var(--cs-grey-600); text-transform:uppercase; margin-bottom:6px;">Eval Gate Pass Rate <span class="info-tip" data-tip="Percentage of AI-generated files passing Bedrock evaluation before merge. Uses rubric-based scoring (code-quality, security, API, agent, spec). Alarm triggers below 70%.">i</span></div>
           <svg width="80" height="80" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="40" class="gauge-ring" stroke="#eaeded"/>
             <circle cx="50" cy="50" r="40" class="gauge-ring" stroke="#1d8102" stroke-dasharray="226" stroke-dashoffset="29" transform="rotate(-90 50 50)"/>
@@ -153,7 +174,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>AI-to-Merge Ratio</h3><span class="panel-period">Hourly</span></div>
+          <div class="panel-head"><h3>AI-to-Merge Ratio <span class="info-tip" data-tip="Percentage of merged code originating from AI tools (Claude Code, Kiro, Q Developer). Detected via AI-Origin commit trailers. Tracks how much of the codebase AI is writing.">i</span></h3><span class="panel-period">Hourly</span></div>
           <svg class="panel-chart" viewBox="0 0 380 80" fill="none">
             <polyline points="30,60 85,55 140,48 195,42 250,38 305,35 360,30" stroke="#8250df" stroke-width="2" fill="none"/>
             <text x="370" y="27" font-size="9" fill="#8250df" font-weight="600">55%</text>
@@ -163,21 +184,21 @@
 
       <div class="dash-panels three" style="margin-top:12px;">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Change Failure Rate</h3></div>
+          <div class="panel-head"><h3>Change Failure Rate <span class="info-tip" data-tip="Percentage of deployments causing rollback or incident. Core DORA reliability metric. Alarm triggers above 20%. Source: GitHub deployment_status events.">i</span></h3></div>
           <svg class="panel-chart" viewBox="0 0 380 60" fill="none">
             <polyline points="30,20 85,22 140,18 195,20 250,15 305,12 360,10" stroke="#d13212" stroke-width="2" fill="none"/>
             <text x="370" y="8" font-size="9" fill="#1d8102" font-weight="600">7.2%</text>
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>MTTR</h3></div>
+          <div class="panel-head"><h3>MTTR <span class="info-tip" data-tip="Mean Time to Recovery in minutes. Time from incident detection to resolution. Core DORA metric measuring operational resilience.">i</span></h3></div>
           <svg class="panel-chart" viewBox="0 0 380 60" fill="none">
             <polyline points="30,25 85,28 140,22 195,20 250,18 305,15 360,12" stroke="#ec7211" stroke-width="2" fill="none"/>
             <text x="370" y="9" font-size="9" fill="#1d8102" font-weight="600">38m</text>
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>AI Test Coverage Delta</h3></div>
+          <div class="panel-head"><h3>AI Test Coverage Delta <span class="info-tip" data-tip="Isolated AI contribution to test coverage changes. Separates AI testing value from human effort by correlating coverage tool output with AI-Origin commit tags.">i</span></h3></div>
           <svg class="panel-chart" viewBox="0 0 380 60" fill="none">
             <polyline points="30,45 85,40 140,35 195,32 250,28 305,25 360,22" stroke="#1a7f37" stroke-width="2" fill="none"/>
             <text x="370" y="19" font-size="9" fill="#1a7f37" font-weight="600">+24%</text>
@@ -189,17 +210,17 @@
       <div class="dash-panels three" style="margin-top:12px;">
         <div class="dash-kpi">
           <div class="kpi-value blue">342</div>
-          <div class="kpi-label">Agent Invocations (24h)</div>
+          <div class="kpi-label">Agent Invocations (24h) <span class="info-tip" data-tip="Total AI agent executions in the past 24 hours. Includes all Strands SDK agents running via AgentCore. Volume signal for agentic workloads.">i</span></div>
           <div class="kpi-trend up">+18% vs yesterday</div>
         </div>
         <div class="dash-kpi">
           <div class="kpi-value green">94.2<span class="kpi-unit">%</span></div>
-          <div class="kpi-label">Agent Success Rate</div>
+          <div class="kpi-label">Agent Success Rate <span class="info-tip" data-tip="Percentage of agent invocations completing without errors. Below 80% triggers an alarm. Failures include tool call errors, guardrail blocks, and timeout exceptions.">i</span></div>
           <div class="kpi-trend up">Above 80% threshold</div>
         </div>
         <div class="dash-kpi">
           <div class="kpi-value purple">1,240<span class="kpi-unit">ms</span></div>
-          <div class="kpi-label">Avg Agent Duration</div>
+          <div class="kpi-label">Avg Agent Duration <span class="info-tip" data-tip="Mean execution time per agent invocation in milliseconds. Includes all steps: LLM inference, tool calls, and guardrail checks. Spikes indicate complex tasks or retries.">i</span></div>
           <div class="kpi-trend neutral">Stable</div>
         </div>
       </div>
@@ -221,7 +242,7 @@
 
       <div class="dash-panels two">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Pass Rate by Rubric</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Pass Rate by Rubric <span class="info-tip" data-tip="Eval gate pass rate broken down by rubric type. Shows which categories of AI code are strongest/weakest. Low agent-quality or security-compliance rates need attention.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 160" fill="none">
             <text x="12" y="20" font-size="10" font-weight="600" fill="#16191f">code-quality</text>
             <text x="370" y="20" text-anchor="end" font-size="10" fill="#1d8102" font-weight="700">92%</text>
@@ -250,7 +271,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Eval Score Trend</h3><span class="panel-period">30 Days</span></div>
+          <div class="panel-head"><h3>Eval Score Trend <span class="info-tip" data-tip="Average Bedrock evaluation score (0-1) over time. The red threshold line at 0.82 marks the pass/fail cutoff. Declining trend = AI output quality degrading, may need prompt tuning.">i</span></h3><span class="panel-period">30 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 160" fill="none">
             <text x="0" y="10" font-size="9" fill="#687078">1.0</text>
             <text x="0" y="80" font-size="9" fill="#687078">0.5</text>
@@ -282,7 +303,7 @@
 
       <div class="dash-panels two">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Triggers by Category</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Triggers by Category <span class="info-tip" data-tip="Guardrail activations grouped by type. SENSITIVE_INFO = PII detected and handled. CONTENT_FILTER = harmful content blocked. DENIED_TOPIC = restricted subjects blocked.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <!-- Stacked bars -->
             <text x="12" y="20" font-size="9" fill="#687078">SENSITIVE_INFO</text>
@@ -303,7 +324,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Block vs Anonymize</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Block vs Anonymize <span class="info-tip" data-tip="Guardrail action breakdown. Blocked = content fully rejected (harmful/prohibited). Anonymized = PII scrubbed but content passed through (emails, phone numbers replaced with placeholders).">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <!-- Blocked line -->
             <polyline points="30,85 85,82 140,88 195,80 250,78 305,75 360,72" stroke="#d13212" stroke-width="2" fill="none"/>
@@ -322,7 +343,7 @@
       <!-- MCP Tool Governance -->
       <div class="dash-panels two" style="margin-top:12px;">
         <div class="dash-panel">
-          <div class="panel-head"><h3>MCP Tool Call Volume</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>MCP Tool Call Volume <span class="info-tip" data-tip="Total MCP tool invocations per day by AI agents. Tracks agent-to-tool activity volume. Growth indicates increasing agentic workload adoption.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 100" fill="none">
             <polyline points="30,60 85,52 140,48 195,42 250,38 305,35 360,30" stroke="#0969da" stroke-width="2" fill="none"/>
             <polygon points="30,60 85,52 140,48 195,42 250,38 305,35 360,30 360,90 30,90" fill="rgba(9,105,218,0.1)"/>
@@ -331,7 +352,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>MCP Auth Denied</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>MCP Auth Denied <span class="info-tip" data-tip="Unauthorized tool call attempts with details. Shows which tools were denied and why (missing scope). Non-zero = agents testing boundaries of their permissions.">i</span></h3><span class="panel-period">7 Days</span></div>
           <div style="padding:12px;">
             <div class="alarm-row"><span class="status-dot orange"></span> <span style="flex:1;">delete_task (read-only session)</span> <span class="alarm-warn">2 denied</span></div>
             <div class="alarm-row"><span class="status-dot orange"></span> <span style="flex:1;">admin_config (no admin scope)</span> <span class="alarm-warn">1 denied</span></div>
@@ -358,7 +379,7 @@
 
       <div class="dash-panels two">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Daily Token Usage</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Daily Token Usage <span class="info-tip" data-tip="Bedrock input vs output tokens per day. Input-heavy = RAG/context workloads. Output-heavy = generative coding. Captured via CloudTrail InvokeModel events.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <!-- Input tokens (bottom) -->
             <rect x="25" y="50" width="40" height="40" rx="2" fill="#0969da"/>
@@ -390,7 +411,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Cost per Commit Trend</h3><span class="panel-period">7 Days</span></div>
+          <div class="panel-head"><h3>Cost per Commit Trend <span class="info-tip" data-tip="Average Bedrock cost per AI-assisted commit. Correlated by matching token events within a 5-minute window before each commit. Declining = developers prompting more efficiently.">i</span></h3><span class="panel-period">7 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 120" fill="none">
             <text x="0" y="10" font-size="9" fill="#687078">$1.00</text>
             <text x="0" y="60" font-size="9" fill="#687078">$0.50</text>
@@ -404,7 +425,7 @@
 
       <div class="dash-panels two" style="margin-top:12px;">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Bedrock Cost (USD)</h3><span class="panel-period">Daily</span></div>
+          <div class="panel-head"><h3>Bedrock Cost (USD) <span class="info-tip" data-tip="Total daily Bedrock spend for this team. Red dashed line shows the $100/day alarm threshold. Exceeding triggers the BedrockDailyCostHigh alarm.">i</span></h3><span class="panel-period">Daily</span></div>
           <svg class="panel-chart" viewBox="0 0 380 80" fill="none">
             <polyline points="30,50 85,45 140,48 195,42 250,38 305,35 360,32" stroke="#ec7211" stroke-width="2" fill="none"/>
             <text x="370" y="29" font-size="9" fill="#ec7211" font-weight="600">$68/day</text>
@@ -414,7 +435,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Token Efficiency</h3><span class="panel-period">Tokens / Line</span></div>
+          <div class="panel-head"><h3>Token Efficiency <span class="info-tip" data-tip="Tokens consumed per line of code changed. Lower is better. Above 500 triggers alarm indicating context bloat, excessive iteration, or inefficient prompting patterns.">i</span></h3><span class="panel-period">Tokens / Line</span></div>
           <svg class="panel-chart" viewBox="0 0 380 80" fill="none">
             <polyline points="30,30 85,32 140,28 195,25 250,22 305,20 360,18" stroke="#1a7f37" stroke-width="2" fill="none"/>
             <text x="370" y="15" font-size="9" fill="#1a7f37" font-weight="600">187</text>
@@ -441,7 +462,7 @@
 
       <div class="dash-panels two">
         <div class="dash-panel">
-          <div class="panel-head"><h3>Defect Rate: AI vs Human Code</h3><span class="panel-period">30 Days</span></div>
+          <div class="panel-head"><h3>Defect Rate: AI vs Human Code <span class="info-tip" data-tip="Side-by-side post-merge defect rates. Defects attributed proportionally to AI vs human commits in failed deployments. AI below human = AI code is more reliable.">i</span></h3><span class="panel-period">30 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 130" fill="none">
             <text x="0" y="10" font-size="9" fill="#687078">10%</text>
             <text x="0" y="65" font-size="9" fill="#687078">5%</text>
@@ -459,7 +480,7 @@
           </svg>
         </div>
         <div class="dash-panel">
-          <div class="panel-head"><h3>Spec-to-Code Hours</h3><span class="panel-period">30 Days</span></div>
+          <div class="panel-head"><h3>Spec-to-Code Hours <span class="info-tip" data-tip="Hours from spec approval (first commit with Spec-Ref trailer) to PR merge. Measures AI impact on the full feature lifecycle. Declining trend = AI accelerating spec-to-ship.">i</span></h3><span class="panel-period">30 Days</span></div>
           <svg class="panel-chart" viewBox="0 0 380 130" fill="none">
             <text x="0" y="10" font-size="9" fill="#687078">24h</text>
             <text x="0" y="65" font-size="9" fill="#687078">12h</text>
