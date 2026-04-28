@@ -36,6 +36,64 @@ interface AiDoraMetrics {
   total_cost_usd: number | null;
 }
 
+interface EvalDetail {
+  eval_id: string;
+  rubric: string;
+  result: 'PASS' | 'FAIL';
+  score: number;
+  input_file: string;
+  pr_number?: number;
+  criterion_scores?: Array<{ name: string; score: number; max_score: number; reasoning: string }>;
+}
+
+interface GuardrailTriggerDetail {
+  guardrail_id: string;
+  guardrail_name: string;
+  trigger_category: 'CONTENT_FILTER' | 'DENIED_TOPIC' | 'WORD_FILTER' | 'SENSITIVE_INFO' | 'CONTEXTUAL_GROUNDING';
+  trigger_type: string;
+  action_taken: 'BLOCK' | 'ANONYMIZE' | 'WARN';
+  agent_name: string;
+  invocation_id: string;
+}
+
+interface MCPToolCallDetail {
+  session_id: string;
+  client_id: string;
+  tool_name: string;
+  scopes_used: string[];
+  authorized: boolean;
+  risk_level: string;
+  duration_ms: number;
+  result_status: 'success' | 'error' | 'denied';
+}
+
+interface TokenDetail {
+  model_id: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  iam_principal: string;
+  developer_email: string;
+  session_id?: string;
+}
+
+interface CostDetail {
+  commit_sha: string;
+  total_tokens: number;
+  total_cost_usd: number;
+  models_used: string[];
+  developer_email: string;
+}
+
+interface QualityDetail {
+  deployment_id: string;
+  ai_defect_rate: number;
+  human_defect_rate: number;
+  total_ai_commits: number;
+  total_human_commits: number;
+}
+
 interface MetricDetail {
   team_id: string;
   repo: string;
@@ -54,6 +112,12 @@ interface MetricDetail {
     status: string;
     guardrails_triggered: number;
   };
+  eval?: EvalDetail;
+  guardrail?: GuardrailTriggerDetail;
+  mcp_tool_call?: MCPToolCallDetail;
+  token?: TokenDetail;
+  cost?: CostDetail;
+  quality?: QualityDetail;
 }
 
 interface EventBridgeEvent {
@@ -389,6 +453,170 @@ async function publishCloudWatchMetrics(
         });
       }
     }
+  }
+
+  // Eval metrics — per-rubric pass rate
+  if (detail.eval) {
+    const rubricDimensions = [
+      ...sharedDimensions,
+      { Name: 'RubricName', Value: detail.eval.rubric ?? 'unknown' },
+    ];
+    metricData.push({
+      MetricName: 'EvalGatePassRateByRubric',
+      Value: detail.eval.result === 'PASS' ? 100 : 0,
+      Unit: StandardUnit.Percent,
+      Dimensions: rubricDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+    metricData.push({
+      MetricName: 'EvalScore',
+      Value: detail.eval.score ?? 0,
+      Unit: StandardUnit.None,
+      Dimensions: rubricDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+  }
+
+  // Guardrail metrics — per-category trigger tracking
+  if (detail.guardrail) {
+    const guardrailDimensions = [
+      ...sharedDimensions,
+      { Name: 'TriggerCategory', Value: detail.guardrail.trigger_category },
+      { Name: 'AgentName', Value: detail.guardrail.agent_name ?? 'unknown' },
+    ];
+    metricData.push({
+      MetricName: 'GuardrailTriggerCount',
+      Value: 1,
+      Unit: StandardUnit.Count,
+      Dimensions: guardrailDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+    if (detail.guardrail.action_taken === 'BLOCK') {
+      metricData.push({
+        MetricName: 'GuardrailBlockCount',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    if (detail.guardrail.action_taken === 'ANONYMIZE') {
+      metricData.push({
+        MetricName: 'GuardrailAnonymizeCount',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+  }
+
+  // MCP tool call metrics
+  if (detail.mcp_tool_call) {
+    const mcpDimensions = [
+      ...sharedDimensions,
+      { Name: 'ToolName', Value: detail.mcp_tool_call.tool_name },
+    ];
+    metricData.push({
+      MetricName: 'MCPToolCallCount',
+      Value: 1,
+      Unit: StandardUnit.Count,
+      Dimensions: mcpDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+    if (!detail.mcp_tool_call.authorized) {
+      metricData.push({
+        MetricName: 'MCPAuthDeniedCount',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: mcpDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    if (detail.mcp_tool_call.duration_ms != null) {
+      metricData.push({
+        MetricName: 'MCPToolCallDurationMs',
+        Value: detail.mcp_tool_call.duration_ms,
+        Unit: StandardUnit.Milliseconds,
+        Dimensions: mcpDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+  }
+
+  // Token usage metrics (Bedrock)
+  if (detail.token) {
+    const tokenDimensions = [
+      ...sharedDimensions,
+      { Name: 'Model', Value: detail.token.model_id },
+    ];
+    const developerDimensions = [
+      ...tokenDimensions,
+      { Name: 'Developer', Value: detail.token.developer_email ?? 'unknown' },
+    ];
+    metricData.push(
+      {
+        MetricName: 'BedrockTokensInput',
+        Value: detail.token.input_tokens,
+        Unit: StandardUnit.Count,
+        Dimensions: developerDimensions,
+        Timestamp: new Date(detail.timestamp),
+      },
+      {
+        MetricName: 'BedrockTokensOutput',
+        Value: detail.token.output_tokens,
+        Unit: StandardUnit.Count,
+        Dimensions: developerDimensions,
+        Timestamp: new Date(detail.timestamp),
+      },
+      {
+        MetricName: 'BedrockCostUSD',
+        Value: detail.token.cost_usd,
+        Unit: StandardUnit.None,
+        Dimensions: developerDimensions,
+        Timestamp: new Date(detail.timestamp),
+      },
+    );
+  }
+
+  // Cost-per-commit metrics
+  if (detail.cost) {
+    metricData.push({
+      MetricName: 'CostPerCommit',
+      Value: detail.cost.total_cost_usd,
+      Unit: StandardUnit.None,
+      Dimensions: sharedDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+    if (detail.cost.total_tokens > 0 && detail.metric?.value > 0) {
+      metricData.push({
+        MetricName: 'TokenEfficiency',
+        Value: detail.cost.total_tokens / detail.metric.value,
+        Unit: StandardUnit.None,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+  }
+
+  // Quality / defect rate metrics
+  if (detail.quality) {
+    metricData.push(
+      {
+        MetricName: 'PostMergeDefectRateAI',
+        Value: detail.quality.ai_defect_rate,
+        Unit: StandardUnit.Percent,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      },
+      {
+        MetricName: 'PostMergeDefectRateHuman',
+        Value: detail.quality.human_defect_rate,
+        Unit: StandardUnit.Percent,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      },
+    );
   }
 
   // Also publish all metrics WITHOUT dimensions for aggregate dashboard views.

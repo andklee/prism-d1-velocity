@@ -554,6 +554,491 @@ export class DashboardStack extends cdk.Stack {
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
 
+    // =======================================================
+    // Team Dashboard: Eval Gate by Rubric (Pillar 2)
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Eval Gate Quality by Rubric',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    const rubricNames = ['code-quality', 'api-response-quality', 'agent-quality', 'security-compliance', 'spec-compliance'];
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Eval Pass Rate by Rubric',
+        left: rubricNames.map((rubric) =>
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'EvalGatePassRateByRubric',
+            dimensionsMap: { RubricName: rubric },
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: rubric,
+          }),
+        ),
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, max: 100, label: 'Pass Rate (%)' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Eval Score Trend',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'EvalScore',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Avg Eval Score',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, max: 1, label: 'Score (0-1)' },
+      }),
+    );
+
+    // =======================================================
+    // Team Dashboard: Guardrails & Safety (Pillar 4)
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Guardrails & Safety',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    const guardrailCategories = ['CONTENT_FILTER', 'DENIED_TOPIC', 'SENSITIVE_INFO', 'WORD_FILTER'];
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Guardrail Triggers by Category',
+        left: guardrailCategories.map((category) =>
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailTriggerCount',
+            dimensionsMap: { TriggerCategory: category },
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: category,
+          }),
+        ),
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Triggers' },
+        view: cloudwatch.GraphWidgetView.BAR,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Guardrail Actions: Block vs Anonymize',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailBlockCount',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Blocked',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailAnonymizeCount',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Anonymized',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Count' },
+      }),
+    );
+
+    // =======================================================
+    // Team Dashboard: MCP Tool Governance (Pillar 3)
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### MCP Tool Governance',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'MCP Tool Call Volume',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'MCPToolCallCount',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Tool Calls',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Calls' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'MCP Auth Denied Rate',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'MCPAuthDeniedCount',
+            statistic: 'Sum',
+            period: DEFAULT_PERIOD,
+            label: 'Denied Calls',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Denied' },
+      }),
+    );
+
+    // =======================================================
+    // Team Dashboard: Cost Intelligence (Pillar 5)
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Cost Intelligence',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Daily Token Usage (Input vs Output)',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'BedrockTokensInput',
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Input Tokens',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'BedrockTokensOutput',
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Output Tokens',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Tokens' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Cost per Commit Trend',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'CostPerCommit',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Avg Cost/Commit ($)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'USD' },
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Bedrock Cost (USD)',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'BedrockCostUSD',
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Daily Cost ($)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'USD' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Token Efficiency',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'TokenEfficiency',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Tokens per Line Changed',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Tokens/Line' },
+      }),
+    );
+
+    // =======================================================
+    // Team Dashboard: AI Attribution (Pillar 7)
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### AI Attribution & Quality',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Defect Rate: AI vs Human Code',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PostMergeDefectRateAI',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'AI Code Defect Rate (%)',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PostMergeDefectRateHuman',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Human Code Defect Rate (%)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Defect Rate (%)' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Spec-to-Code Hours',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SpecToCodeHours',
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Avg Hours',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Hours' },
+      }),
+    );
+
+    // =======================================================
+    // Executive Dashboard: Security & Compliance section
+    // =======================================================
+    execDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Security & Compliance',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    execDashboard.addWidgets(
+      new cloudwatch.SingleValueWidget({
+        title: 'Guardrail Blocks (7d)',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailBlockCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Blocks',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Guardrail Trigger Trend',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailTriggerCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Daily Triggers',
+          }),
+        ],
+        width: 9,
+        height: 4,
+        leftYAxis: { min: 0, label: 'Count' },
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'MCP Auth Denied (7d)',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'MCPAuthDeniedCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Denied',
+          }),
+        ],
+        width: 3,
+        height: 4,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Exfiltration Alerts (7d)',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'ExfiltrationAlertCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Alerts',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+    );
+
+    // =======================================================
+    // Executive Dashboard: Cost Intelligence
+    // =======================================================
+    execDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Cost Intelligence',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    execDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Weekly Bedrock Cost',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'BedrockCostUSD',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Weekly Cost ($)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'USD' },
+        view: cloudwatch.GraphWidgetView.BAR,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Cost per Deploy',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'CostPerCommit',
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'Avg $/Commit',
+          }),
+        ],
+        width: 6,
+        height: 6,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'AI vs Human Defect Rate',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PostMergeDefectRateAI',
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'AI Defect Rate (%)',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PostMergeDefectRateHuman',
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'Human Defect Rate (%)',
+          }),
+        ],
+        width: 6,
+        height: 6,
+      }),
+    );
+
+    // =======================================================
+    // New Alarms (Pillars 2-7)
+    // =======================================================
+
+    // Alarm: Guardrail block rate exceeding threshold
+    new cloudwatch.Alarm(this, 'GuardrailBlockRateHighAlarm', {
+      alarmName: 'PRISM-D1-GuardrailBlockRate-High',
+      alarmDescription: 'Guardrail block count exceeds 50 per hour, indicating potential prompt attack or misconfiguration.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'GuardrailBlockCount',
+        statistic: 'Sum',
+        period: cdk.Duration.hours(1),
+      }),
+      threshold: 50,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    // Alarm: Daily Bedrock cost exceeding budget
+    new cloudwatch.Alarm(this, 'BedrockDailyCostHighAlarm', {
+      alarmName: 'PRISM-D1-BedrockDailyCost-High',
+      alarmDescription: 'Daily Bedrock cost exceeds $100 threshold.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'BedrockCostUSD',
+        statistic: 'Sum',
+        period: cdk.Duration.days(1),
+      }),
+      threshold: 100,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    // Alarm: Token efficiency below threshold
+    new cloudwatch.Alarm(this, 'TokenEfficiencyLowAlarm', {
+      alarmName: 'PRISM-D1-TokenEfficiency-Low',
+      alarmDescription: 'Token efficiency is low — high token consumption relative to code output.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'TokenEfficiency',
+        statistic: 'Average',
+        period: cdk.Duration.hours(6),
+      }),
+      threshold: 500,
+      evaluationPeriods: 3,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    // Alarm: Exfiltration detection
+    new cloudwatch.Alarm(this, 'ExfiltrationAlertAlarm', {
+      alarmName: 'PRISM-D1-ExfiltrationAlert',
+      alarmDescription: 'Data exfiltration pattern detected — anomalous read volume on PRISM tables.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'ExfiltrationAlertCount',
+        statistic: 'Sum',
+        period: cdk.Duration.hours(1),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
     // Alarm: Agent success rate dropping below 80%
     new cloudwatch.Alarm(this, 'AgentSuccessRateAlarm', {
       metric: new cloudwatch.Metric({

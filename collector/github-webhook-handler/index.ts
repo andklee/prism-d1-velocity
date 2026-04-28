@@ -15,6 +15,7 @@ import {
   PrismEvent,
   GitHubPushEvent,
   GitHubPullRequestEvent,
+  GitHubPullRequestReviewEvent,
   GitHubDeploymentEvent,
   GitHubDeploymentStatusEvent,
   GitHubCheckRunEvent,
@@ -395,6 +396,54 @@ function processCheckRunEvent(payload: GitHubCheckRunEvent): PrismEvent[] {
 }
 
 // ---------------------------------------------------------------------------
+// Pull Request Review (AI Acceptance Rate)
+// ---------------------------------------------------------------------------
+
+function processPullRequestReviewEvent(event: GitHubPullRequestReviewEvent): PrismEvent[] {
+  if (event.action !== 'submitted') return [];
+
+  const review = event.review;
+  const pr = event.pull_request;
+  const repo = event.repository.full_name;
+
+  // Only track approval/rejection reviews (not comments)
+  if (review.state !== 'approved' && review.state !== 'changes_requested') {
+    return [];
+  }
+
+  // Check if this PR has AI trailers
+  const trailers = parseAITrailers(pr.body ?? '');
+  if (trailers.origin === 'human') {
+    // Also check PR title for AI indicators
+    const titleTrailers = parseAITrailers(pr.title ?? '');
+    if (titleTrailers.origin === 'human') {
+      return []; // Not an AI-assisted PR
+    }
+  }
+
+  const accepted = review.state === 'approved' ? 1 : 0;
+
+  return [
+    {
+      source: 'prism.d1.velocity',
+      detailType: 'prism.d1.pr',
+      detail: buildMetricDetail(
+        repo,
+        review.submitted_at,
+        'pr.ai_review',
+        accepted,
+        'boolean',
+        trailers,
+        {},
+        {
+          ai_acceptance_rate: accepted * 100,
+        },
+      ),
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // EventBridge Emitter
 // ---------------------------------------------------------------------------
 
@@ -483,6 +532,9 @@ export async function handler(
         break;
       case 'check_run':
         prismEvents = processCheckRunEvent(payload as GitHubCheckRunEvent);
+        break;
+      case 'pull_request_review':
+        prismEvents = processPullRequestReviewEvent(payload as GitHubPullRequestReviewEvent);
         break;
       default:
         console.log(`Ignoring unhandled event type: ${eventType}`);

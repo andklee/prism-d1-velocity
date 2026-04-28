@@ -2,11 +2,12 @@
 # run-eval.sh — Run a Bedrock Evaluation against a rubric and emit results to EventBridge.
 #
 # Usage:
-#   ./run-eval.sh <rubric-file> <input-file> [--config <config-file>]
+#   ./run-eval.sh <rubric-file> <input-file> [--config <config-file>] [--spec <spec-file>]
 #
 # Examples:
 #   ./run-eval.sh rubrics/code-quality.json src/handler.ts
 #   ./run-eval.sh rubrics/api-response-quality.json src/api/ --config custom-config.json
+#   ./run-eval.sh rubrics/spec-compliance.json src/handler.ts --spec specs/feature.md
 
 set -euo pipefail
 
@@ -19,14 +20,16 @@ DEFAULT_CONFIG="${SCRIPT_DIR}/eval-config.json"
 RUBRIC_FILE=""
 INPUT_FILE=""
 CONFIG_FILE="${DEFAULT_CONFIG}"
+SPEC_FILE=""
 
 usage() {
-    echo "Usage: $0 <rubric-file> <input-file> [--config <config-file>]"
+    echo "Usage: $0 <rubric-file> <input-file> [--config <config-file>] [--spec <spec-file>]"
     echo ""
     echo "Arguments:"
     echo "  rubric-file   Path to the rubric JSON file (e.g., rubrics/code-quality.json)"
     echo "  input-file    Path to the code file or directory to evaluate"
     echo "  --config      Path to eval config JSON (default: eval-config.json)"
+    echo "  --spec        Path to spec file for spec-compliance evaluation"
     exit 1
 }
 
@@ -34,6 +37,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)
             CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --spec)
+            SPEC_FILE="$2"
             shift 2
             ;;
         --help|-h)
@@ -125,17 +132,41 @@ fi
 
 RUBRIC_CONTENT=$(cat "${RUBRIC_FILE}")
 
+# Load spec content if provided
+SPEC_CONTENT=""
+if [[ -n "${SPEC_FILE}" ]]; then
+    if [[ ! -f "${SPEC_FILE}" ]]; then
+        echo "Warning: spec file not found: ${SPEC_FILE}. Proceeding without spec."
+    else
+        SPEC_CONTENT=$(cat "${SPEC_FILE}")
+        echo "Spec:       ${SPEC_FILE}"
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Build the evaluation prompt
 # ---------------------------------------------------------------------------
-EVAL_PROMPT=$(jq -n \
-    --arg rubric "${RUBRIC_CONTENT}" \
-    --arg code "${INPUT_CONTENT}" \
-    '{
-        "rubric": ($rubric | fromjson),
-        "code_to_evaluate": $code,
-        "instructions": "Evaluate the provided code against each criterion in the rubric. For each criterion, provide a score (1-5) and reasoning. Then calculate the weighted overall score normalized to 0-1. Return a JSON object matching the output_format in the rubric."
-    }')
+if [[ -n "${SPEC_CONTENT}" ]]; then
+    EVAL_PROMPT=$(jq -n \
+        --arg rubric "${RUBRIC_CONTENT}" \
+        --arg code "${INPUT_CONTENT}" \
+        --arg spec "${SPEC_CONTENT}" \
+        '{
+            "rubric": ($rubric | fromjson),
+            "code_to_evaluate": $code,
+            "spec": $spec,
+            "instructions": "Evaluate the provided code against each criterion in the rubric, using the spec as the source of truth for requirements. For each criterion, provide a score (1-5) and reasoning. Then calculate the weighted overall score normalized to 0-1. Return a JSON object matching the output_format in the rubric."
+        }')
+else
+    EVAL_PROMPT=$(jq -n \
+        --arg rubric "${RUBRIC_CONTENT}" \
+        --arg code "${INPUT_CONTENT}" \
+        '{
+            "rubric": ($rubric | fromjson),
+            "code_to_evaluate": $code,
+            "instructions": "Evaluate the provided code against each criterion in the rubric. For each criterion, provide a score (1-5) and reasoning. Then calculate the weighted overall score normalized to 0-1. Return a JSON object matching the output_format in the rubric."
+        }')
+fi
 
 # ---------------------------------------------------------------------------
 # Call Bedrock

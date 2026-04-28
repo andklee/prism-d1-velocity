@@ -123,7 +123,50 @@ export type PrismDetailType =
   | 'prism.d1.deploy'
   | 'prism.d1.eval'
   | 'prism.d1.incident'
-  | 'prism.d1.assessment';
+  | 'prism.d1.assessment'
+  | 'prism.d1.guardrail'
+  | 'prism.d1.mcp.tool_call'
+  | 'prism.d1.token'
+  | 'prism.d1.cost'
+  | 'prism.d1.security'
+  | 'prism.d1.quality';
+
+// --- Guardrail trigger detail ---
+export interface GuardrailTriggerDetail {
+  guardrail_id: string;
+  guardrail_name: string;
+  trigger_category: 'CONTENT_FILTER' | 'DENIED_TOPIC' | 'WORD_FILTER' | 'SENSITIVE_INFO' | 'CONTEXTUAL_GROUNDING';
+  trigger_type: string;
+  action_taken: 'BLOCK' | 'ANONYMIZE' | 'WARN';
+  agent_name: string;
+  invocation_id: string;
+}
+
+// --- MCP tool call audit detail ---
+export interface MCPToolCallDetail {
+  session_id: string;
+  client_id: string;
+  tool_name: string;
+  scopes_used: string[];
+  authorized: boolean;
+  risk_level: string;
+  duration_ms: number;
+  result_status: 'success' | 'error' | 'denied';
+}
+
+// --- PR review event (for AI acceptance rate tracking) ---
+export interface GitHubPullRequestReviewEvent {
+  action: 'submitted' | 'edited' | 'dismissed';
+  review: {
+    id: number;
+    state: 'approved' | 'changes_requested' | 'commented' | 'dismissed';
+    user: { login: string };
+    submitted_at: string;
+    body: string | null;
+  };
+  pull_request: GitHubPullRequest;
+  repository: GitHubRepository;
+}
 
 export interface AIContext {
   tool: AITool | string;

@@ -115,10 +115,39 @@ jobs:
             echo "Evaluating: ${FILE}"
 
             # Determine rubric based on file path
-            if echo "${FILE}" | grep -qiE '(api|handler|route|controller)'; then
+            if echo "${FILE}" | grep -qiE '(agent|assistant|orchestrat|workflow|chain)'; then
+              RUBRIC="eval-harness/rubrics/agent-quality.json"
+            elif echo "${FILE}" | grep -qiE '(auth|security|guard|policy|iam|permission|crypto)'; then
+              RUBRIC="eval-harness/rubrics/security-compliance.json"
+            elif echo "${FILE}" | grep -qiE '(api|handler|route|controller)'; then
               RUBRIC="eval-harness/rubrics/api-response-quality.json"
             else
               RUBRIC="eval-harness/rubrics/code-quality.json"
+            fi
+
+            RUBRIC_NAME=$(basename "${RUBRIC}" .json)
+
+            # Check for spec compliance — if commit has Spec-Ref trailer, run spec rubric first
+            SPEC_REF=""
+            for SHA in ${AI_SHAS}; do
+              REF=$(git log -1 --format='%B' "${SHA}" | grep -oP 'Spec-Ref:\s*\K\S+' || true)
+              if [[ -n "${REF}" ]]; then
+                SPEC_REF="${REF}"
+                break
+              fi
+            done
+            if [[ -n "${SPEC_REF}" && -f "${SPEC_REF}" && -f "eval-harness/rubrics/spec-compliance.json" ]]; then
+              set +e
+              SPEC_OUTPUT=$(./eval-harness/run-eval.sh "eval-harness/rubrics/spec-compliance.json" "${FILE}" --spec "${SPEC_REF}" 2>&1)
+              set -e
+              SPEC_SCORE=$(echo "${SPEC_OUTPUT}" | grep '^Score:' | awk '{print $2}' || echo "0")
+              SPEC_RESULT=$(echo "${SPEC_OUTPUT}" | grep '^Result:' | awk '{print $2}' || echo "UNKNOWN")
+              RESULTS="${RESULTS}\n| \`${FILE}\` (spec) | ${SPEC_SCORE} | ${SPEC_RESULT} |"
+              if [[ "${SPEC_RESULT}" != "PASS" ]]; then
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+              else
+                PASS_COUNT=$((PASS_COUNT + 1))
+              fi
             fi
 
             # Run eval (capture exit code without failing the step)
@@ -277,7 +306,8 @@ jobs:
                 "pass_count": $pass_count,
                 "fail_count": $fail_count,
                 "result": $result,
-                "pr_number": ($pr_number | tonumber)
+                "pr_number": ($pr_number | tonumber),
+                "rubrics_used": ["code-quality", "api-response-quality", "agent-quality", "security-compliance"]
               }
             }')
 
