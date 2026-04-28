@@ -90,7 +90,11 @@ export async function handler(event: DeployEvent): Promise<void> {
       return;
     }
 
-    // Calculate defect rates (proportion of commits that were in a failed deploy)
+    // Calculate defect rates using proportional distribution.
+    // Since we can't attribute a specific failure to a specific commit,
+    // we distribute the change failure rate proportionally by code origin.
+    // This gives a directional signal: if 80% of commits are AI and the
+    // deploy failed, AI code carries 80% of the attributed failure weight.
     const aiDefectRate = aiCommitCount > 0 ? (cfr * aiCommitCount) / totalCommits : 0;
     const humanDefectRate = humanCommitCount > 0 ? (cfr * humanCommitCount) / totalCommits : 0;
 

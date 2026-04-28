@@ -207,16 +207,30 @@ async function writeEventToDynamo(
     data.ai_dora = detail.ai_dora;
   }
 
+  const item: Record<string, { S?: string; N?: string }> = {
+    pk: { S: `${detail.team_id}#${detail.repo}` },
+    sk: { S: detail.timestamp },
+    detail_type: { S: detailType },
+    data: { S: JSON.stringify(data) },
+    ttl: { N: ttl.toString() },
+  };
+
+  // Store spec_ref as a top-level attribute for GSI queries (spec-to-code calculation)
+  const specRef = (detail.ai_context as any)?.spec_ref
+    ?? (detail as any).spec_ref;
+  if (specRef && typeof specRef === 'string') {
+    item.spec_ref = { S: specRef };
+  }
+
+  // Store eval rubric as a top-level attribute for per-rubric queries
+  if (detail.eval?.rubric) {
+    item.eval_rubric = { S: detail.eval.rubric };
+  }
+
   await dynamoClient.send(
     new PutItemCommand({
       TableName: EVENTS_TABLE,
-      Item: {
-        pk: { S: `${detail.team_id}#${detail.repo}` },
-        sk: { S: detail.timestamp },
-        detail_type: { S: detailType },
-        data: { S: JSON.stringify(data) },
-        ttl: { N: ttl.toString() },
-      },
+      Item: item,
     }),
   );
 }

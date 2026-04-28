@@ -74,6 +74,7 @@ jobs:
           fi
 
           echo "has_ai_changes=true" >> "$GITHUB_OUTPUT"
+          echo "ai_shas=${AI_SHAS}" >> "$GITHUB_OUTPUT"
 
           # Collect changed files from AI commits
           CHANGED_FILES=""
@@ -129,6 +130,7 @@ jobs:
 
             # Check for spec compliance — if commit has Spec-Ref trailer, run spec rubric first
             SPEC_REF=""
+            AI_SHAS="${{ steps.detect-ai.outputs.ai_shas }}"
             for SHA in ${AI_SHAS}; do
               REF=$(git log -1 --format='%B' "${SHA}" | grep -oP 'Spec-Ref:\s*\K\S+' || true)
               if [[ -n "${REF}" ]]; then

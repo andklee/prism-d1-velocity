@@ -48,20 +48,18 @@ export async function handler(event: PrMergedEvent): Promise<void> {
 
   console.log(`Calculating spec-to-code for spec: ${specRef}`);
 
-  // Query for the earliest commit event in this repo
-  // that references this spec (by scanning commit events and checking data)
+  // Query for the earliest commit event in this repo that references this spec.
+  // spec_ref is stored as a top-level DynamoDB attribute by the metrics-processor.
   try {
     const result = await dynamoClient.send(
       new QueryCommand({
         TableName: EVENTS_TABLE,
         KeyConditionExpression: 'pk = :pk',
-        FilterExpression: 'contains(#data_attr, :spec_ref)',
-        ExpressionAttributeNames: {
-          '#data_attr': 'data',
-        },
+        FilterExpression: 'spec_ref = :spec_ref AND detail_type = :dt',
         ExpressionAttributeValues: {
           ':pk': { S: `${detail.team_id}#${detail.repo}` },
           ':spec_ref': { S: specRef },
+          ':dt': { S: 'prism.d1.commit' },
         },
         ScanIndexForward: true, // Oldest first
         Limit: 1,
