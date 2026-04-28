@@ -328,6 +328,157 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 
 ---
 
+## Dashboard Guide
+
+PRISM ships **4 dashboards** across two AWS services, each targeting a specific audience and decision level.
+
+### CloudWatch: Team Velocity (`PRISM-D1-Team-Velocity`)
+
+**Audience:** Engineering teams, tech leads, ICs
+**Update frequency:** Real-time (1-hour metric periods)
+**Purpose:** Day-to-day operational view of how AI tools are impacting team velocity, code quality, and safety.
+
+#### DORA & AI-DORA Metrics
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| AI Acceptance Rate | Time series | % of AI-generated suggestions accepted by developers. Dropping trend signals review friction or quality issues. |
+| Deployment Frequency | Bar chart | Deploys per day. Core DORA velocity signal — higher is better at L3+. |
+| Lead Time for Changes | Time series | Seconds from PR creation to deploy. Measures how fast code moves through the pipeline. |
+| Eval Gate Pass Rate | Gauge (0-100%) | % of AI-generated files passing Bedrock evaluation. Below 70% triggers an alarm. |
+| AI Test Coverage Delta | Time series | Isolated AI contribution to test coverage changes — separates AI testing value from human effort. |
+| Change Failure Rate | Time series | % of deployments causing a rollback or hotfix. Above 20% triggers an alarm. |
+| Mean Time to Recovery | Time series | Seconds from incident to resolution. Measures operational resilience. |
+| AI to Merge Ratio | Time series | % of merged code originating from AI tools. Tracks how much of the codebase AI is writing. |
+
+#### Agent Operations
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Agent Invocations | Time series | Total agent executions per hour. Volume signal for agentic workloads. |
+| Agent Success Rate | Time series | % of agent invocations completing successfully. Below 80% triggers alarm. |
+| Agent Avg Duration | Time series | Mean execution time per agent invocation in milliseconds. |
+
+#### Eval Gate Quality by Rubric
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Eval Pass Rate by Rubric | Multi-line chart | Pass rate broken down by rubric (code-quality, api-response, agent, security, spec-compliance). Shows which rubric is failing most. |
+| Eval Score Trend | Time series | Average evaluation score (0-1) over time. Declining trend = AI output quality degrading. |
+
+#### Guardrails & Safety
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Guardrail Triggers by Category | Stacked bar | Triggers broken down: CONTENT_FILTER, DENIED_TOPIC, SENSITIVE_INFO, WORD_FILTER. Spikes indicate prompt attack attempts or policy violations. |
+| Guardrail Actions: Block vs Anonymize | Dual-line chart | Ratio of hard blocks (content rejected) vs soft anonymization (PII scrubbed). High block rate = potential misconfiguration or attack. |
+
+#### MCP Tool Governance
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| MCP Tool Call Volume | Time series | Total MCP tool invocations per hour. Tracks agent-to-tool activity. |
+| MCP Auth Denied Rate | Time series | Unauthorized tool call attempts. Non-zero = agents attempting out-of-scope actions. |
+
+#### Cost Intelligence
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Daily Token Usage (Input vs Output) | Stacked area | Input vs output token consumption per day. Output-heavy = generative workloads; input-heavy = RAG/context workloads. |
+| Cost per Commit Trend | Time series | Average Bedrock cost per AI-assisted commit. Rising trend = inefficient prompting or context bloat. |
+| Bedrock Cost (USD) | Time series | Total daily Bedrock spend. Tracks budget consumption. Above $100/day triggers alarm. |
+| Token Efficiency | Time series | Tokens consumed per line of code changed. Lower = more efficient AI usage. Above 500 triggers alarm. |
+
+#### AI Attribution & Quality
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Defect Rate: AI vs Human Code | Dual-line chart | Side-by-side post-merge defect rates. Answers "is AI code as reliable as human code?" |
+| Spec-to-Code Hours | Time series | Hours from spec approval to code PR merge. Measures AI impact on the full feature lifecycle. |
+
+---
+
+### CloudWatch: Executive Readout (`PRISM-D1-Executive-Readout`)
+
+**Audience:** CTOs, VPEs, engineering directors, board members
+**Update frequency:** Near real-time (7-day/30-day metric periods)
+**Purpose:** Leadership view connecting AI adoption to business outcomes, security posture, and cost management.
+
+#### Strategic Overview
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| PRISM Level Progress | Single value | Current maturity level (L1-L5). The north-star metric for AI adoption maturity. |
+| Enhanced DORA Summary | Multi-value | 7-day snapshot of all 4 DORA metrics in one row. At-a-glance health check. |
+| Cost per AI-Assisted Feature | Single value | Average spec-to-code hours. Proxy for "how much does a feature cost in AI-accelerated development?" |
+
+#### Trends
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| AI Contribution Trend | Multi-line (3 metrics) | 30-day trend of acceptance rate, merge ratio, and test coverage delta. Shows whether AI adoption is growing or plateauing. |
+| Feature Cycle Time Trend | Dual-line | Spec-to-code hours and lead time together. Both should trend down as AI adoption matures. |
+
+#### Quality Gates
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Eval Gate Pass Rate | Gauge (0-100%) | 7-day average pass rate. If below 70%, AI output quality needs attention. |
+| Post-Merge Defect Rate | Time series | Overall defect rate trend. Should decrease as eval gates catch issues pre-merge. |
+| Deployment Frequency (Weekly) | Bar chart | Weekly deploy cadence. Visual proof of velocity improvement. |
+
+#### Security & Compliance
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Guardrail Blocks (7d) | Single value | Total content blocks in the past week. High = either effective guardrails or concerning prompt patterns. |
+| Guardrail Trigger Trend | Time series | Daily trigger count. Sustained increase warrants investigation. |
+| MCP Auth Denied (7d) | Single value | Unauthorized tool access attempts. Non-zero = agents probing beyond their scope. |
+| Exfiltration Alerts (7d) | Single value | Data exfiltration pattern detections. Any non-zero value triggers the alarm. |
+
+#### Cost Intelligence
+
+| Widget | Type | What It Shows |
+|--------|------|---------------|
+| Weekly Bedrock Cost | Bar chart | Week-over-week Bedrock spend. Budget planning signal for CFOs. |
+| Cost per Deploy | Single value | Average cost per AI-assisted commit. Efficiency benchmark. |
+| AI vs Human Defect Rate | Dual single value | Side-by-side 7-day defect rate comparison. The "is AI code reliable?" answer for the board. |
+
+---
+
+### QuickSight: AI-DORA Analysis
+
+**Audience:** Engineering managers, platform teams, data analysts
+**Update frequency:** Near real-time (DynamoDB → QuickSight dataset)
+**Purpose:** Deep-dive exploratory analysis across teams, repos, AI tools, and time periods.
+
+| Sheet | Visuals | What It Shows |
+|-------|---------|---------------|
+| **DORA Overview** | 4 KPI widgets + trend chart | KPI cards for each DORA metric with week-over-week change arrows. Daily trend overlay shows correlation between deploy frequency and failure rate. |
+| **AI Contribution** | Acceptance rate by team (bar), merge ratio trend (line), tool breakdown (pie) | Compare AI adoption across teams. See which AI tools (Claude Code, Kiro, Q Developer) produce the most merged code. |
+| **Quality & Evals** | Eval pass rate KPI, defect rate comparison (AI vs human), test coverage delta trend | Track whether AI eval gates are catching issues and whether AI code quality is improving relative to human code. |
+| **Spec Efficiency** | Spec-to-code by team (bar), turnaround trend by team (line) | Identify which teams are fastest at turning specs into code and whether AI is accelerating the spec-to-code pipeline. |
+
+**Filters:** Date range (90d), Team, Repository, AI Tool, PRISM Level
+
+---
+
+### QuickSight: PRISM Level Tracker
+
+**Audience:** SAs, engineering leaders, program managers
+**Update frequency:** Near real-time
+**Purpose:** Track maturity progression across teams and compare against benchmarks.
+
+| Sheet | Visuals | What It Shows |
+|-------|---------|---------------|
+| **Level Overview** | Current level gauge, level-by-team table, level history line chart | Where each team stands on L1-L5 and how they've progressed over time. |
+| **Domain Breakdown** | Radar chart (6 sub-dimensions), normalized scores table | Granular view of which dimensions (acceptance rate, cycle time, eval coverage, deploy freq, defect delta, spec speed) are strong vs weak per team. |
+| **Benchmarks** | Team vs cohort comparison bar, benchmarks by funding stage table | Compare team metrics against community averages segmented by company stage (Series A-D). |
+
+**Filters:** Date range (180d), Team selection
+
+---
+
 ## Token Usage & Cost Tracking (IMPLEMENTED)
 
 Token consumption and cost tracking is now implemented via the CloudTrail → EventBridge pipeline.

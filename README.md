@@ -12,18 +12,20 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 
 ### For Engineering Leaders (Top-Down Visibility)
 
-- **AWS-native dashboards** comparable to Jellyfish/Swarmia — but built on CloudWatch + QuickSight
+- **[Executive Readout Dashboard](docs/data-architecture.md#cloudwatch-executive-readout-prism-d1-executive-readout)** — Strategic overview: PRISM level, DORA summary, AI contribution trends, security & compliance posture, cost intelligence
+- **[PRISM Level Tracker](docs/data-architecture.md#quicksight-prism-level-tracker)** (QuickSight) — Maturity progression by team, radar chart of sub-dimensions, benchmarks by funding stage
+- **[AI-DORA Analysis](docs/data-architecture.md#quicksight-ai-dora-analysis)** (QuickSight) — Deep-dive exploratory analysis across teams, repos, and AI tools with KPI trend cards
 - **Enhanced DORA metrics** with AI-specific dimensions (acceptance rate, AI-to-merge ratio, eval gate pass rate)
-- **Executive readout templates** that connect engineering metrics to business outcomes
-- **PRISM level tracking** — see your org's maturity score change over time
+- **[Executive readout templates](docs/leader-guide/executive-readout-template.md)** that connect engineering metrics to business outcomes
 
 ### For Engineering Teams (Bottom-Up Activation)
 
+- **[Team Velocity Dashboard](docs/data-architecture.md#cloudwatch-team-velocity-prism-d1-team-velocity)** — Real-time operational view: DORA metrics, eval gate quality by rubric, guardrail safety, MCP tool governance, cost per commit, AI vs human defect rates
 - **4-hour workshop** (+ extensions) with hands-on exercises using Claude Code + Bedrock
 - **Spec-driven development** templates compatible with Kiro
 - **AI agent development** — build agents with Strands SDK, MCP, and Amazon Bedrock AgentCore
 - **Bootstrapper code** — git hooks, CI workflows, eval harnesses, agent configs teams inherit permanently
-- **Sample application** with task API + MCP server + Strands agent to practice AI-DLC patterns
+- **Sample application** with task API + MCP server (with [scope-based auth](sample-app/src/mcp/auth/)) + Strands agent to practice AI-DLC patterns
 
 ## Quick Start
 
@@ -202,7 +204,7 @@ The repo includes a complete agent development stack for PRISM Level 3+ teams:
 
 - **[Competitive Landscape](docs/competitive-landscape.md)** — How PRISM D1 compares to Swarmia, Jellyfish, LinearB, DX, Faros AI, and Pluralsight Flow across DORA, AI-native metrics, and platform capabilities
 - **[Community Roadmap](docs/ROADMAP.md)** — 47 prioritized backlog items across 9 phases to reach and exceed feature parity with commercial tools — open for community contributions
-- **[Data Architecture](docs/data-architecture.md)** — Complete metrics pipeline documentation: 7 data sources, 8 event types, AI tool detection, CloudWatch metrics catalog, and the token/cost tracking gap
+- **[Data Architecture & Dashboard Guide](docs/data-architecture.md)** — Complete metrics pipeline: 8 data sources, 14 event types, 4 dashboards (with widget-by-widget guide), CloudWatch metrics catalog, and token/cost intelligence pipeline
 
 **GitHub Pages**: [sunilpp.github.io/prism-d1-velocity](https://sunilpp.github.io/prism-d1-velocity/)
 
