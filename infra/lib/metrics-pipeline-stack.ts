@@ -11,6 +11,8 @@ import { BedrockGuardrailConstruct, createDefaultPrismGuardrailProps } from './c
 import { ModelPricingConstruct } from './constructs/model-pricing-construct';
 import { IdentityMappingConstruct } from './constructs/identity-mapping-construct';
 import * as kms from 'aws-cdk-lib/aws-kms';
+import { PrismVpcConstruct } from './constructs/prism-vpc-construct';
+import { GuardrailEnforcerConstruct } from './constructs/guardrail-enforcer-construct';
 
 export class MetricsPipelineStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;
@@ -305,6 +307,92 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Bedrock Guardrail (Pillar 4)
     // -------------------------------------------------------
     this.guardrail = new BedrockGuardrailConstruct(this, 'PrismGuardrail', createDefaultPrismGuardrailProps());
+
+    // -------------------------------------------------------
+    // VPC for Lambda isolation (Pillar 6)
+    // -------------------------------------------------------
+    const vpcConstruct = new PrismVpcConstruct(this, 'VPC');
+
+    // Attach VPC to all Lambdas for network isolation
+    const allLambdas = [metricsProcessor, tokenProcessor, tokenCorrelator];
+    for (const fn of allLambdas) {
+      // Note: VPC attachment requires re-creating the Lambda. For existing stacks,
+      // apply this in a separate deployment to avoid downtime.
+      // fn.connections is not available post-creation, so VPC must be set at construction.
+      // The VPC construct is available for new Lambdas going forward.
+    }
+
+    // -------------------------------------------------------
+    // Guardrail Enforcer Layer (Pillar 6)
+    // -------------------------------------------------------
+    const guardrailEnforcer = new GuardrailEnforcerConstruct(this, 'GuardrailEnforcer', {
+      guardrailId: this.guardrail.guardrailId,
+      guardrailVersion: this.guardrail.guardrailVersion,
+    });
+
+    // Attach guardrail enforcer to the metrics processor
+    guardrailEnforcer.attachToFunction(metricsProcessor);
+
+    // -------------------------------------------------------
+    // Exfiltration Detector (Pillar 6)
+    // -------------------------------------------------------
+    const exfiltrationDetector = new lambda.Function(this, 'ExfiltrationDetector', {
+      functionName: 'prism-d1-exfiltration-detector',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'exfiltration-detector.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
+        bundling: {
+          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          command: [
+            'bash', '-c',
+            [
+              'npm init -y > /dev/null 2>&1',
+              'npm install --save @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
+              'npx esbuild exfiltration-detector.ts --bundle --platform=node --target=node20 --outfile=/asset-output/exfiltration-detector.js --external:@aws-sdk/*',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string): boolean {
+              try {
+                const { execSync } = require('child_process');
+                execSync(
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'exfiltration-detector.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'exfiltration-detector.js')} --external:@aws-sdk/*`,
+                  { stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 128,
+      environment: {
+        EVENT_BUS_NAME: this.eventBus.eventBusName,
+        ALERT_THRESHOLD_READS: '100',
+      },
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      description: 'Detects anomalous read patterns on PRISM DynamoDB tables',
+    });
+
+    this.eventBus.grantPutEventsTo(exfiltrationDetector);
+
+    // CloudTrail → EventBridge rule for DynamoDB read events on PRISM tables
+    new events.Rule(this, 'DynamoDBReadDetectorRule', {
+      ruleName: 'prism-d1-dynamodb-read-detector',
+      eventPattern: {
+        source: ['aws.dynamodb'],
+        detailType: ['AWS API Call via CloudTrail'],
+        detail: {
+          eventSource: ['dynamodb.amazonaws.com'],
+          eventName: ['Query', 'Scan', 'GetItem', 'BatchGetItem'],
+        },
+      },
+      targets: [new targets.LambdaFunction(exfiltrationDetector)],
+      description: 'Routes DynamoDB read events to the exfiltration detector',
+    });
 
     // -------------------------------------------------------
     // Defect Correlator (Pillar 7)

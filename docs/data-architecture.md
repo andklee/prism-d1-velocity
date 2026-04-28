@@ -1,38 +1,39 @@
 # PRISM D1 Velocity — Data Architecture & Metrics Pipeline
 
-> **Last updated:** 2026-04-22
+> **Last updated:** 2026-04-27
 > **Purpose:** Document how every AI-assisted action becomes a measurable metric — from git commit to executive dashboard.
 
 ---
 
 ## Overview
 
-**7 data sources** feed into **EventBridge**, processed by **Lambda**, triple-written to **DynamoDB** (events + metadata) and **CloudWatch** (time-series). Dashboards read from CloudWatch (real-time) and DynamoDB (historical queries). **8 event types** carry **6 AI-DORA metrics** across every commit, PR, deploy, and eval gate.
+**8 data sources** feed into **EventBridge**, processed by **Lambda** (1 core processor + 5 specialized), triple-written to **DynamoDB** (events + metadata, KMS-encrypted) and **CloudWatch** (time-series). **14 event types** carry DORA, AI-DORA, cost, security, and quality metrics across the full AI development lifecycle.
 
 ---
 
 ## End-to-End Data Flow
 
 ```
-Git Hooks / GitHub Webhooks / CI Workflows / Direct API
+Git Hooks / GitHub Webhooks / CI Workflows / Direct API / CloudTrail (Bedrock)
                         |
                         v
-              API Gateway (POST /metrics)
-              50 req/s burst, 100K/month
+              API Gateway (POST /metrics)       CloudTrail (Bedrock API calls)
+              50 req/s burst, 100K/month         └─→ EventBridge (default bus)
+                        |                              └─→ token-processor Lambda
+                        v                                    └─→ prism.d1.token
+            EventBridge (prism-d1-metrics)  ←──────────────────────┘
+            14 event types routed by rules
                         |
-                        v
-            EventBridge (prism-d1-metrics)
-            8 event types routed by rules
-                        |
-                        v
-              Lambda (metrics-processor)
-              Normalize, enrich, triple-write
-                   /    |    \
-                  v     v     v
-           DynamoDB  DynamoDB  CloudWatch
-           (events)  (metadata) (PRISM/D1/Velocity)
-           365-day    Latest     Time-series
-           log        snapshot   metrics
+           ┌────────────┼───────────────────────────────────┐
+           ▼            ▼                                   ▼
+    metrics-processor   Specialized Lambdas           DynamoDB read events
+    (triple-write)      • token-commit-correlator     (via CloudTrail)
+                        • defect-correlator                  |
+    → DynamoDB Events   • spec-to-code-calculator            ▼
+      (KMS encrypted)   • exfiltration-detector      exfiltration-detector
+    → DynamoDB Meta       ↓                           → prism.d1.security
+      (KMS encrypted)   (emit derived events back
+    → CloudWatch          to EventBridge)
                   \    |    /
                    v   v   v
             Dashboards & Queries
@@ -100,14 +101,28 @@ Shell script at `collector/ci-metadata-emitter/emit-metrics.sh` that runs inside
 
 ---
 
+### 6. Bedrock CloudTrail Events (NEW — Pillar 5)
+
+CloudTrail captures every Bedrock API call (InvokeModel, Converse, etc.) with token counts. An EventBridge rule on the **default** event bus routes these to the `token-processor` Lambda, which enriches with pricing and identity data.
+
+### 7. MCP Tool Call Audit (NEW — Pillar 3)
+
+The MCP server's audit logger emits `prism.d1.mcp.tool_call` events to EventBridge for every tool call that requires audit (medium/high risk tools).
+
+### 8. Agent Runtime Metrics (NEW — Pillar 4)
+
+Agent invocations emit `prism.d1.agent` events with step counts, tool calls, tokens used, and guardrail triggers. Individual guardrail triggers emit separate `prism.d1.guardrail` events with category, type, and action details.
+
+---
+
 ## Event Schema
 
-Every event follows this structure on EventBridge:
+Every event follows this base structure on EventBridge:
 
 ```json
 {
   "source": "prism.d1.velocity",
-  "detail-type": "prism.d1.commit | .pr | .deploy | .eval | .incident | .assessment | .agent | .agent.eval",
+  "detail-type": "prism.d1.commit | .pr | .deploy | .eval | .incident | .assessment | .agent | .agent.eval | .guardrail | .mcp.tool_call | .token | .cost | .security | .quality",
   "detail": {
     "team_id": "team-alpha",
     "repo": "owner/repo-name",
@@ -144,6 +159,36 @@ Every event follows this structure on EventBridge:
 
 ---
 
+### Extended Event Payloads (Pillars 2-7)
+
+Events may include additional top-level fields depending on their type:
+
+| Field | Event Types | Description |
+|-------|------------|-------------|
+| `eval` | `prism.d1.eval` | Eval ID, rubric name, result, score, criterion scores |
+| `guardrail` | `prism.d1.guardrail` | Guardrail ID, trigger category/type, action taken, agent name |
+| `mcp_tool_call` | `prism.d1.mcp.tool_call` | Session ID, client ID, tool name, scopes, authorized flag, risk level |
+| `token` | `prism.d1.token` | Model ID, input/output tokens, cost USD, IAM principal, developer email |
+| `cost` | `prism.d1.cost` | Commit SHA, total tokens, total cost, models used, correlation window |
+| `quality` | `prism.d1.quality` | AI defect rate, human defect rate, AI/human commit counts |
+| `security` | `prism.d1.security` | Alert type, table name, principal ARN, read count |
+
+---
+
+## Specialized Lambda Processors (Pillars 5-7)
+
+In addition to the core metrics-processor, five specialized Lambdas handle derived metric calculations:
+
+| Lambda | Trigger | Input | Output |
+|--------|---------|-------|--------|
+| `prism-d1-token-processor` | CloudTrail Bedrock API calls (default bus) | CloudTrail event with token counts | `prism.d1.token` event with pricing + identity |
+| `prism-d1-token-correlator` | `prism.d1.commit` events | Commit timestamp | `prism.d1.cost` event with cost-per-commit |
+| `prism-d1-defect-correlator` | `prism.d1.deploy` events | Failed deployment | `prism.d1.quality` event with AI vs human defect rates |
+| `prism-d1-spec-to-code-calculator` | `prism.d1.pr` events | Merged PR with Spec-Ref | `prism.d1.pr` event with spec_to_code_hours |
+| `prism-d1-exfiltration-detector` | CloudTrail DynamoDB read events (default bus) | DynamoDB Query/Scan/GetItem | `prism.d1.security` event when threshold exceeded |
+
+---
+
 ## Processing & Storage
 
 The Lambda processor (`infra/lib/lambda/metrics-processor.ts`) does a **triple-write** for every event:
@@ -176,6 +221,11 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | **Repository** | `detail.repo` | Yes |
 | **AIOrigin** | `detail.ai_context.origin` | Optional — enables filtering by ai-generated / ai-assisted / human |
 | **AgentName** | `detail.agent.name` | Optional — for agent metrics only |
+| **RubricName** | `detail.eval.rubric` | Optional — for per-rubric eval metrics |
+| **TriggerCategory** | `detail.guardrail.trigger_category` | Optional — for guardrail metrics |
+| **ToolName** | `detail.mcp_tool_call.tool_name` | Optional — for MCP tool metrics |
+| **Model** | `detail.token.model_id` | Optional — for token/cost metrics |
+| **Developer** | `detail.token.developer_email` | Optional — for per-developer cost attribution |
 
 > All metrics are also published **without dimensions** for aggregate queries across all teams and repos.
 
@@ -215,92 +265,206 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | `AgentGuardrailTriggerCount` | Count | Bedrock Guardrail triggers |
 | `AgentSuccessRate` | Percent | 100 if success, 0 if failed |
 
+### Eval Gate Metrics (Pillar 2)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `EvalGatePassRateByRubric` | Percent | Eval gate workflow, per rubric type |
+| `EvalScore` | None (0-1) | Eval gate workflow, average score |
+
+### Guardrail Metrics (Pillar 4)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `GuardrailTriggerCount` | Count | Agent guardrail trigger events, per category |
+| `GuardrailBlockCount` | Count | Content blocked by guardrails |
+| `GuardrailAnonymizeCount` | Count | PII anonymized by guardrails |
+
+### MCP Tool Metrics (Pillar 3)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `MCPToolCallCount` | Count | MCP server audit logger |
+| `MCPAuthDeniedCount` | Count | Unauthorized tool call attempts |
+| `MCPToolCallDurationMs` | Milliseconds | Tool execution time |
+
+### Cost & Token Metrics (Pillar 5)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `BedrockTokensInput` | Count | CloudTrail → token-processor Lambda |
+| `BedrockTokensOutput` | Count | CloudTrail → token-processor Lambda |
+| `BedrockCostUSD` | None (USD) | Token-processor × pricing table |
+| `CostPerCommit` | None (USD) | Token-commit-correlator Lambda |
+| `TokenEfficiency` | None | Tokens per line of code changed |
+
+### Quality & Attribution Metrics (Pillar 7)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `PostMergeDefectRateAI` | Percent | Defect-correlator Lambda |
+| `PostMergeDefectRateHuman` | Percent | Defect-correlator Lambda |
+
+### Security Metrics (Pillar 6)
+
+| Metric Name | Unit | Source |
+|------------|------|--------|
+| `ExfiltrationAlertCount` | Count | Exfiltration-detector Lambda |
+
 ---
 
 ## Active Alarms
 
-| Alarm | Metric | Threshold | Period |
-|-------|--------|-----------|--------|
-| AI Acceptance Rate Low | AIAcceptanceRate | < 20% | 6 hours |
-| Eval Gate Pass Rate Low | EvalGatePassRate | < 70% | 6 hours |
-| Change Failure Rate High | ChangeFailureRate | > 20% | 6 hours |
-| Agent Success Rate Low | AgentSuccessRate | < 80% | 1 hour |
+| Alarm | Metric | Threshold | Period | Pillar |
+|-------|--------|-----------|--------|--------|
+| AI Acceptance Rate Low | AIAcceptanceRate | < 20% | 6 hours | Core |
+| Eval Gate Pass Rate Low | EvalGatePassRate | < 70% | 6 hours | Core |
+| Change Failure Rate High | ChangeFailureRate | > 20% | 6 hours | Core |
+| Agent Success Rate Low | AgentSuccessRate | < 80% | 1 hour | Core |
+| Guardrail Block Rate High | GuardrailBlockCount | > 50 | 1 hour | Pillar 4 |
+| Bedrock Daily Cost High | BedrockCostUSD | > $100 | 1 day | Pillar 5 |
+| Token Efficiency Low | TokenEfficiency | > 500 | 6 hours | Pillar 5 |
+| Exfiltration Alert | ExfiltrationAlertCount | ≥ 1 | 1 hour | Pillar 6 |
 
 ---
 
-## Current Gap: Token Usage & Cost Tracking
+## Token Usage & Cost Tracking (IMPLEMENTED)
 
-**Claude Code, Kiro, and Q Developer token consumption is NOT tracked today.** The pipeline captures *which* tool was used and *what* it produced (commits, PRs), but not *how many tokens* it consumed or *what it cost*.
+Token consumption and cost tracking is now implemented via the CloudTrail → EventBridge pipeline.
 
-### What's tracked vs. what's missing
+### What's tracked
 
 | Dimension | Status | Detail |
 |-----------|--------|--------|
 | Tool identity | **Tracked** | Via env var detection |
 | Model used | **Tracked** | Via AI-Model trailer |
 | Code output | **Tracked** | Lines/files per commit |
-| Token consumption | **Not tracked** | Input/output tokens per session/commit |
-| Session duration | **Not tracked** | How long each AI session lasted |
-| Cost per session | **Not tracked** | Dollar cost of each AI interaction |
-| Cost per commit | **Not tracked** | Correlation of token cost to code output |
-| Cost per PR/feature | **Not tracked** | Aggregate cost across a feature lifecycle |
-| Developer-level cost | **Not tracked** | Per-developer AI consumption patterns |
+| Token consumption | **Tracked** | Via CloudTrail → `token-processor` Lambda |
+| Cost per session | **Partial** | Cost calculated per API call, session grouping planned |
+| Cost per commit | **Tracked** | Via `token-commit-correlator` Lambda (5-min window) |
+| Developer-level cost | **Tracked** | Via IAM principal → identity mapping table |
 
-### Why it's hard today
-
-- **Claude Code** doesn't expose token counts via environment variables or files that git hooks can read
-- **Bedrock API calls** are logged in CloudTrail with token counts, but not automatically correlated to commits/PRs
-- **Multi-turn sessions** may span multiple commits, making 1:1 correlation non-trivial
-
-### Proposed solution: Bedrock CloudTrail → Token Pipeline
+### Architecture
 
 ```
-Bedrock InvokeModel API calls
+Bedrock InvokeModel/Converse API calls
          |
          v
 CloudTrail (logs every call with input_tokens, output_tokens, model_id)
          |
          v
-EventBridge Rule (matches bedrock.amazonaws.com InvokeModel events)
+EventBridge Rule (prism-d1-bedrock-api-calls)
          |
          v
-Lambda: token-cost-processor
-  - Extract: model_id, input_tokens, output_tokens, timestamp, IAM user/role
-  - Look up cost: model pricing table (DynamoDB)
-  - Correlate: timestamp proximity to commits (within 5-min window)
-  - Correlate: IAM role → developer identity
-  - Aggregate: per-session, per-commit, per-PR, per-feature
+Lambda: prism-d1-token-processor
+  - Extract: model_id, input_tokens, output_tokens, timestamp, IAM principal
+  - Look up cost: prism-model-pricing table (DynamoDB, seeded on deploy)
+  - Look up identity: prism-identity-mapping table (IAM ARN → email → team)
+  - Emit: prism.d1.token event
+         |
+         v
+prism.d1.commit event triggers:
+Lambda: prism-d1-token-correlator
+  - Query: prism.d1.token events within 5-min window before commit
+  - Aggregate: total tokens, cost, models used
+  - Emit: prism.d1.cost event
          |
          v
 CloudWatch: PRISM/D1/Velocity namespace
-  - BedrockTokensInput (by TeamId, Developer, Model)
-  - BedrockTokensOutput (by TeamId, Developer, Model)
+  - BedrockTokensInput / BedrockTokensOutput (by TeamId, Developer, Model)
   - BedrockCostUSD (by TeamId, Developer, Model)
-  - CostPerCommit (by TeamId, AITool)
-  - CostPerPR (by TeamId)
+  - CostPerCommit (by TeamId, Repository)
+  - TokenEfficiency (by TeamId)
          |
          v
-Dashboards: Token usage trends, cost overlays, ROI calculation
+Dashboards: Daily token trends, cost by model, cost-per-commit, budget burn rate
+Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 ```
 
-See the [Community Roadmap](./ROADMAP.md) Phase 2B for the full implementation plan (R-210 through R-221).
+### Remaining Gaps
+
+| Dimension | Status | Detail |
+|-----------|--------|--------|
+| Session duration | **Not tracked** | Session grouping (gap > 15 min) planned as R-216 |
+| Cost per PR/feature | **Not tracked** | Aggregate across PR commits planned as R-214/R-215 |
+| Multi-tool cost normalization | **Not tracked** | Copilot/Cursor subscription normalization planned as R-220 |
 
 ---
 
 ## Key Files Reference
 
+### Core Pipeline
+
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | Git hooks | `bootstrapper/metric-hooks/` | Local commit metadata capture + AI tool detection |
-| GitHub webhook handler | `collector/github-webhook-handler/index.ts` | Process push, PR, deploy, check_run events |
+| GitHub webhook handler | `collector/github-webhook-handler/index.ts` | Process push, PR, PR review, deploy, check_run events |
 | CI metric emitter | `collector/ci-metadata-emitter/emit-metrics.sh` | Shell script for GitHub Actions metric emission |
 | Commit analyzer | `collector/git-hooks/prism-commit-analyzer.ts` | Standalone commit analysis tool |
-| Metrics processor Lambda | `infra/lib/lambda/metrics-processor.ts` | EventBridge → DynamoDB + CloudWatch triple-write |
+| Metrics processor Lambda | `infra/lib/lambda/metrics-processor.ts` | EventBridge → DynamoDB + CloudWatch triple-write (all 14 event types) |
 | API handler Lambda | `infra/lib/lambda/api-handler.ts` | REST API for ingestion + queries |
-| Metrics pipeline stack | `infra/lib/metrics-pipeline-stack.ts` | EventBridge bus + DynamoDB tables + Lambda |
+| Metrics pipeline stack | `infra/lib/metrics-pipeline-stack.ts` | EventBridge bus + DynamoDB tables + Lambda + constructs |
 | API stack | `infra/lib/api-stack.ts` | API Gateway + Lambda + usage plans |
-| Dashboard stack | `infra/lib/dashboard-stack.ts` | CloudWatch dashboards + alarms |
+| Dashboard stack | `infra/lib/dashboard-stack.ts` | CloudWatch dashboards (2) + alarms (8) |
+
+### Pillar 2: Eval Gates
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Eval gate workflow | `bootstrapper/github-workflows/prism-eval-gate.yml` | Smart rubric routing, spec compliance, PR comment |
+| Eval runner | `bootstrapper/eval-harness/run-eval.sh` | CLI eval with `--spec` flag |
+| Rubrics (5) | `bootstrapper/eval-harness/rubrics/*.json` | code-quality, api-response, agent, security, spec-compliance |
+
+### Pillar 3: MCP Authorization
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Tool registry | `sample-app/src/mcp/auth/tool-registry.ts` | Scope definitions per tool |
+| Authorizer | `sample-app/src/mcp/auth/authorizer.ts` | Session-based scope enforcement |
+| Session store | `sample-app/src/mcp/auth/session-store.ts` | In-memory session management with TTL |
+| Audit logger | `sample-app/src/mcp/auth/audit-logger.ts` | EventBridge emission for tool calls |
+| MCP server | `sample-app/src/mcp/server.ts` | Auth middleware integration |
+
+### Pillar 4: Guardrails & Audit
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Guardrail CDK construct | `infra/lib/constructs/bedrock-guardrail-construct.ts` | Deploy Bedrock Guardrails via CDK |
+| Agent metrics | `sample-app/agent/src/task_assistant/metrics.py` | Granular guardrail trigger events |
+| Guardrail enforcer | `infra/lib/constructs/guardrail-enforcer-construct.ts` | Lambda layer for runtime enforcement |
+
+### Pillar 5: Cost Intelligence
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Model pricing construct | `infra/lib/constructs/model-pricing-construct.ts` | DynamoDB pricing table + seeder |
+| Identity mapping construct | `infra/lib/constructs/identity-mapping-construct.ts` | IAM → developer identity table |
+| Pricing seeder | `infra/lib/lambda/seed-pricing.ts` | Seeds model pricing on deploy |
+| Token processor | `infra/lib/lambda/token-processor.ts` | CloudTrail → token events |
+| Token-commit correlator | `infra/lib/lambda/token-commit-correlator.ts` | Token → commit cost correlation |
+
+### Pillar 6: IP & Data Protection
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| VPC construct | `infra/lib/constructs/prism-vpc-construct.ts` | Private subnets + VPC endpoints |
+| Exfiltration detector | `infra/lib/lambda/exfiltration-detector.ts` | Anomalous DynamoDB read detection |
+| KMS encryption | `infra/lib/metrics-pipeline-stack.ts` | Customer-managed key on all tables |
+
+### Pillar 7: AI Attribution
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Defect correlator | `infra/lib/lambda/defect-correlator.ts` | AI vs human defect rates on failed deploys |
+| Spec-to-code calculator | `infra/lib/lambda/spec-to-code-calculator.ts` | Spec → code cycle time |
+| PR review handler | `collector/github-webhook-handler/index.ts` | AI acceptance rate from PR reviews |
+
+### Workflows
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
 | AI metrics workflow | `bootstrapper/github-workflows/prism-ai-metrics.yml` | PR merge → AI-DORA event emission |
 | DORA weekly workflow | `bootstrapper/github-workflows/prism-dora-weekly.yml` | Weekly DORA + AI adoption assessment |
 | Agent eval workflow | `bootstrapper/github-workflows/prism-agent-eval.yml` | Agent quality gate on PRs |
+| Eval gate workflow | `bootstrapper/github-workflows/prism-eval-gate.yml` | AI code quality gate on PRs |
 | Workshop module | `workshop/04-instrumenting-ai-metrics/` | Hands-on exercises for metric instrumentation |

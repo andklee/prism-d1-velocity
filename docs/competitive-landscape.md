@@ -76,7 +76,12 @@ All platforms (except Pluralsight Flow's uncertain future) and PRISM D1 cover th
 | Cross-org Rollups | Yes | Yes | Yes | Yes | Yes | **Limited** |
 | NL Query Interface | No | Yes (AI copilot) | No | Yes (AI copilot) | Yes (Lighthouse) | **No** |
 | Maturity Model | No | No | No | No | No | **Yes** |
-| Alerting/Anomaly Detection | Yes | Yes | Yes | Yes | Yes | **Basic** (4 alarms) |
+| Alerting/Anomaly Detection | Yes | Yes | Yes | Yes | Yes | **Yes** (8 alarms) |
+| AI Cost Intelligence | No | Yes | Yes | Yes | Yes | **Yes** (token + cost pipeline) |
+| MCP/Tool Governance | No | No | No | No | No | **Yes** (scope-based auth + audit) |
+| Guardrail Enforcement | No | No | No | No | No | **Yes** (Bedrock Guardrails) |
+| Data Encryption (CMK) | Varies | Yes | Varies | Varies | Yes | **Yes** (KMS with rotation) |
+| Exfiltration Detection | No | No | No | No | No | **Yes** (CloudTrail anomaly) |
 
 ---
 
@@ -114,13 +119,19 @@ PRISM D1 ships two dashboard tiers — an Executive Readout and a Team Velocity 
 
 5. **AWS-Native / Zero 3P Cost** — Runs entirely on CloudWatch, QuickSight, EventBridge, and DynamoDB. No per-seat licensing fees.
 
+6. **MCP Tool Governance** — Only platform with scope-based authorization, session management, and audit logging for MCP tool calls. No 3P tool governs agent-to-tool access.
+
+7. **Bedrock Guardrail Integration** — Only platform with deployed Bedrock Guardrails (content filters, PII protection, denied topics) and per-trigger metric tracking. No 3P tool enforces AI safety at the platform level.
+
+8. **AI vs Human Defect Comparison** — Only platform correlating deployment failures to AI vs human commit origins, providing side-by-side defect rates.
+
 ### Where PRISM D1 Trails
 
 1. **Developer Experience** — No qualitative/survey capability. DX and Faros combine systems data with developer sentiment for a complete picture.
 
 2. **Benchmarking** — No industry comparison data. LinearB has 8.1M+ PRs of benchmark data; Jellyfish and DX offer peer comparisons.
 
-3. **Cost Intelligence** — ROI Multiplier exists as a widget but has no cost input pipeline. Jellyfish and DX calculate true ROI with license spend data.
+3. ~~**Cost Intelligence**~~ — **CLOSED.** Token-level cost tracking via CloudTrail → Bedrock pipeline now provides per-developer, per-model, per-commit cost attribution. Remaining gap: multi-tool cost normalization (Copilot/Cursor subscription models).
 
 4. **Scale & Rollups** — Dashboards are per-team. No org-wide hierarchy, drill-down, or cross-team aggregation at the executive level.
 

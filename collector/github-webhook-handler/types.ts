@@ -124,6 +124,8 @@ export type PrismDetailType =
   | 'prism.d1.eval'
   | 'prism.d1.incident'
   | 'prism.d1.assessment'
+  | 'prism.d1.agent'
+  | 'prism.d1.agent.eval'
   | 'prism.d1.guardrail'
   | 'prism.d1.mcp.tool_call'
   | 'prism.d1.token'
