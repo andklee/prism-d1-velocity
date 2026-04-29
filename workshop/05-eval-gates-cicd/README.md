@@ -1,4 +1,4 @@
-# Module 04: Eval Gates in CI/CD
+# Module 05: Eval Gates in CI/CD
 
 | | |
 |---|---|

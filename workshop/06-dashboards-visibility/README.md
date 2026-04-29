@@ -1,4 +1,4 @@
-# Module 05: Dashboards & Visibility
+# Module 06: Dashboards & Visibility
 
 | | |
 |---|---|

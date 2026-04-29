@@ -7,7 +7,7 @@
 
 ## Overview
 
-**8 data sources** feed into **EventBridge**, processed by **Lambda** (1 core processor + 5 specialized), triple-written to **DynamoDB** (events + metadata, KMS-encrypted) and **CloudWatch** (time-series). **14 event types** carry DORA, AI-DORA, cost, security, and quality metrics across the full AI development lifecycle.
+**9 data sources** feed into **EventBridge**, processed by **Lambda** (1 core processor + 8 specialized), triple-written to **DynamoDB** (events + metadata, KMS-encrypted) and **CloudWatch** (time-series). **18 event types** carry DORA, AI-DORA, cost, security, and quality metrics across the full AI development lifecycle.
 
 ---
 
@@ -331,7 +331,7 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 
 ## Dashboard Guide
 
-PRISM ships **4 dashboards** across two AWS services, each targeting a specific audience and decision level.
+PRISM ships **5 dashboards** across two AWS services, each targeting a specific audience and decision level.
 
 ### CloudWatch: Team Velocity (`PRISM-D1-Team-Velocity`)
 
