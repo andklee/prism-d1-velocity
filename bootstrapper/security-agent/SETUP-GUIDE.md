@@ -368,12 +368,14 @@ git push
 
 **What the workflow does automatically:**
 
-| Event | Trigger | Security Agent API Call |
+| Event | Trigger | What Happens |
 |---|---|---|
-| Push to `specs/**` or `docs/design/**` | Design review | `aws securityagent add-artifact` (uploads spec for review) |
-| PR opened or updated | Code review | Findings collected via `aws securityagent list-findings` |
-| Successful deployment | Pen test | `aws securityagent start-pentest-job` → poll → collect findings |
-| Manual dispatch | Any | Select scan type from GitHub Actions UI |
+| Push to `specs/**` or `docs/design/**` | Design review | 1. `add-artifact` uploads specs as context → 2. `start-pentest-job` runs analysis using spec context → 3. `list-findings` collects results → 4. Forward to PRISM API |
+| PR opened or updated | Code review | Security Agent GitHub integration reviews PR automatically → workflow collects findings via `list-findings` → forward to PRISM API |
+| Successful deployment | Pen test | `start-pentest-job` runs pen test against deployed app → poll until complete → `list-findings` → forward to PRISM API |
+| Manual dispatch | Any | Select scan type from GitHub Actions UI → runs the corresponding flow above |
+
+**Key concept:** Specs uploaded via `add-artifact` are **context**, not standalone scans. Security Agent uses them to understand your application's intent, then crafts targeted security analysis during pen test execution. This is why design review triggers a pen test job — the pen test engine is what performs the analysis.
 
 All findings are automatically forwarded to the PRISM API endpoint and appear in dashboards.
 
@@ -424,7 +426,15 @@ git commit -m "Add test spec for security review"
 git push
 ```
 
-**Check:** GitHub Actions → "PRISM Security Agent Scan" workflow runs → spec uploaded → findings appear in PRISM dashboard.
+**What happens:**
+1. GitHub Actions triggers "PRISM Security Agent Scan" workflow
+2. Workflow uploads spec as context artifact (`add-artifact`)
+3. Workflow starts pen test job that uses spec context (`start-pentest-job`)
+4. Security Agent analyzes your design for security gaps (auth, data flow, rate limiting, etc.)
+5. Findings collected and forwarded to PRISM API
+6. Findings appear in Team Velocity → "Security Agent Findings" section
+
+**Check:** GitHub Actions tab shows workflow completed → PRISM dashboard shows design_review findings.
 
 ### Test 2: Code Review
 
@@ -496,11 +506,15 @@ Open each dashboard and verify data:
 # List agent spaces
 aws securityagent list-agent-spaces --region us-west-2
 
-# Upload a spec for design review
+# Upload a spec as context (Security Agent uses this during pen tests)
 aws securityagent add-artifact \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --artifact-content fileb://specs/my-spec.md \
   --artifact-type MD --file-name my-spec.md
+
+# List uploaded artifacts
+aws securityagent list-artifacts \
+  --agent-space-id "${AGENT_SPACE_ID}"
 
 # Start a pen test
 aws securityagent start-pentest-job \

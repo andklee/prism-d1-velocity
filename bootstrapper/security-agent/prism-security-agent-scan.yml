@@ -99,16 +99,29 @@ jobs:
           fi
 
       # -------------------------------------------------------
-      # DESIGN REVIEW — upload specs as artifacts for review
+      # DESIGN REVIEW — upload specs as context, then run pen test
+      # for application-context-aware security analysis
+      #
+      # How this works:
+      #   1. Upload changed specs as artifacts (gives Security Agent
+      #      application context — what the app is supposed to do)
+      #   2. Start a pen test job that uses these artifacts to craft
+      #      targeted security analysis (architecture risks, auth
+      #      design gaps, data flow issues)
+      #   3. Collect findings and forward to PRISM
+      #
+      # This is NOT a simple document scan. Security Agent uses the
+      # spec to understand intent, then evaluates whether the design
+      # introduces security risks.
       # -------------------------------------------------------
-      - name: Upload specs for design review
+      - name: Upload specs as Security Agent context
         if: steps.scan-type.outputs.type == 'design_review'
-        id: design-review
+        id: upload-specs
         run: |
-          echo "=== Uploading specs to Security Agent for design review ==="
+          echo "=== Uploading specs as Security Agent context ==="
 
           CHANGED_FILES="${{ steps.scan-type.outputs.changed_files }}"
-          ARTIFACT_IDS=""
+          UPLOADED=0
 
           while IFS= read -r FILE; do
             [[ -z "${FILE}" ]] && continue
@@ -125,26 +138,50 @@ jobs:
               *)   ARTIFACT_TYPE="TXT" ;;
             esac
 
-            RESULT=$(aws securityagent add-artifact \
+            aws securityagent add-artifact \
               --agent-space-id "${AGENT_SPACE_ID}" \
               --artifact-content "fileb://${FILE}" \
               --artifact-type "${ARTIFACT_TYPE}" \
               --file-name "$(basename "${FILE}")" \
               --region "${AWS_REGION}" \
-              --output json 2>&1) || {
-                echo "Warning: Failed to upload ${FILE}: ${RESULT}"
-                continue
+              --output json > /dev/null 2>&1 && {
+                echo "  Uploaded successfully"
+                ((UPLOADED++))
+              } || {
+                echo "  Warning: Failed to upload (non-blocking)"
               }
-
-            ARTIFACT_ID=$(echo "${RESULT}" | jq -r '.artifactId // empty')
-            if [[ -n "${ARTIFACT_ID}" ]]; then
-              echo "  Uploaded: ${ARTIFACT_ID}"
-              ARTIFACT_IDS="${ARTIFACT_IDS} ${ARTIFACT_ID}"
-            fi
           done <<< "${CHANGED_FILES}"
 
-          echo "artifact_ids=${ARTIFACT_IDS}" >> "$GITHUB_OUTPUT"
-          echo "Design review artifacts uploaded: $(echo ${ARTIFACT_IDS} | wc -w | tr -d ' ')"
+          echo "uploaded=${UPLOADED}" >> "$GITHUB_OUTPUT"
+          echo "Uploaded ${UPLOADED} spec artifacts as context"
+
+      - name: Run design review via pen test
+        if: steps.scan-type.outputs.type == 'design_review'
+        id: design-review
+        run: |
+          PENTEST_ID="${{ vars.PRISM_PENTEST_ID }}"
+          if [[ -z "${PENTEST_ID}" ]]; then
+            echo "PRISM_PENTEST_ID not set — skipping automated design review."
+            echo "Upload specs manually in the Security Agent console for review."
+            echo "job_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "=== Starting pen test with spec context for design review ==="
+          RESULT=$(aws securityagent start-pentest-job \
+            --agent-space-id "${AGENT_SPACE_ID}" \
+            --pentest-id "${PENTEST_ID}" \
+            --region "${AWS_REGION}" \
+            --output json 2>&1) || {
+              echo "Warning: Failed to start pen test: ${RESULT}"
+              echo "job_id=" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+
+          JOB_ID=$(echo "${RESULT}" | jq -r '.pentestJobId // empty')
+          echo "Pen test job started: ${JOB_ID}"
+          echo "Security Agent will use uploaded specs to craft targeted analysis"
+          echo "job_id=${JOB_ID}" >> "$GITHUB_OUTPUT"
 
       # -------------------------------------------------------
       # PEN TEST — start a pen test job
@@ -187,9 +224,16 @@ jobs:
           REPO="${{ github.repository }}"
           TEAM_ID="${{ vars.PRISM_TEAM_ID }}"
 
-          # For pen tests, wait for job completion and get findings
-          if [[ "${SCAN_TYPE}" == "pen_test" ]]; then
-            JOB_ID="${{ steps.pen-test.outputs.job_id }}"
+          # For pen tests and design reviews (both start pen test jobs),
+          # wait for job completion and get findings
+          if [[ "${SCAN_TYPE}" == "pen_test" || "${SCAN_TYPE}" == "design_review" ]]; then
+            # Get job ID from the appropriate step
+            if [[ "${SCAN_TYPE}" == "pen_test" ]]; then
+              JOB_ID="${{ steps.pen-test.outputs.job_id }}"
+            else
+              JOB_ID="${{ steps.design-review.outputs.job_id }}"
+            fi
+
             if [[ -z "${JOB_ID}" ]]; then
               echo "No pen test job to poll"
               echo "count=0" >> "$GITHUB_OUTPUT"

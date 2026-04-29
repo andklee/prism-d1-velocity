@@ -204,13 +204,31 @@ These steering files work with Claude Code (via CLAUDE.md), Kiro (via .kiro/stee
 
 > **Instructor Note:** This exercise requires AWS Security Agent access. Skip if not available — demonstrate with screenshots instead. See the [Security Agent Setup Guide](../../bootstrapper/security-agent/SETUP-GUIDE.md) for console configuration steps.
 
-**Context:** You've written a spec. Before writing code, Security Agent reviews it for architectural security risks.
+**Context:** You've written a spec. Before writing code, you upload it as context to Security Agent. When Security Agent runs, it uses your spec to understand what the application is supposed to do — then identifies security risks in the design.
+
+**How it works:**
+1. Spec is uploaded as a **context artifact** (`aws securityagent add-artifact`)
+2. Security Agent uses the spec to understand application intent
+3. A pen test job runs with spec awareness — finding gaps between intended design and actual security posture
+4. Findings are forwarded to PRISM and appear in dashboards
 
 **They will:**
 1. Take the spec from Exercise 1 (e.g., `specs/user-auth.md`)
-2. Submit it to Security Agent for design review
-3. Review the findings — security risks identified before a single line of code
-4. Revise the spec based on findings
+2. Upload it to Security Agent:
+   ```bash
+   aws securityagent add-artifact \
+     --agent-space-id <your-space-id> \
+     --artifact-content fileb://specs/user-auth.md \
+     --artifact-type MD --file-name user-auth.md
+   ```
+3. Start a pen test job that uses the spec context:
+   ```bash
+   aws securityagent start-pentest-job \
+     --agent-space-id <your-space-id> \
+     --pentest-id <your-pentest-id>
+   ```
+4. Review the findings — architectural security risks identified using spec awareness
+5. Revise the spec based on findings
 
 | Finding | What It Means |
 |---|---|
@@ -218,7 +236,9 @@ These steering files work with Claude Code (via CLAUDE.md), Kiro (via .kiro/stee
 | "Token storage mechanism not defined" | Spec needs a design constraint about secure storage |
 | "No session expiry policy" | Spec needs an acceptance criterion for session management |
 
-**The metric:** `FindingSurvivalRate` — percentage of design review findings surviving to code review or pen testing. Lower = catching issues earlier. Visible in the CISO Compliance dashboard.
+> **Instructor Note:** In the automated flow, the GitHub Actions workflow handles steps 2-4 automatically when specs are committed to `specs/`. For the workshop, participants run the commands manually to understand the flow.
+
+**The metric:** `FindingSurvivalRate` — percentage of design review findings that survive to code review or pen testing. Lower = teams catching issues earlier. Visible in the CISO Compliance dashboard.
 
 > **Instructor Note:** "The spec is your first line of defense. Security Agent proves it."
 
