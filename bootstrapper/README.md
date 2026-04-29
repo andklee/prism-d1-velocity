@@ -8,9 +8,12 @@ Everything your team needs to adopt AI-native software development practices. In
 |---|---|
 | `claude-code/` | CLAUDE.md templates for backend, frontend, and platform teams |
 | `spec-templates/` | Kiro-compatible specification templates (API, data model, integration, agent workflow) |
-| `eval-harness/` | Amazon Bedrock Evaluation rubrics and runner script |
+| `eval-harness/` | Amazon Bedrock Evaluation rubrics (5 rubrics) and runner script with `--spec` flag |
 | `github-workflows/` | Reusable GitHub Actions for metric collection and eval gating |
 | `metric-hooks/` | Git hooks for automatic AI-origin tagging and local metric collection |
+| `aidlc-steering/` | AI-DLC development workflow rules for Claude Code, Kiro, and Q Developer (adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows)) |
+| `agent-configs/` | AgentCore Runtime, Memory, Gateway, and Guardrail templates |
+| `mcp-servers/` | Reference MCP server implementations |
 
 ## Quickstart
 
