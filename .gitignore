@@ -4,6 +4,7 @@ cdk.out/
 .env
 *.js
 !jest.config.js
+!infra/lib/lambda/layers/**/*.js
 *.d.ts
 .cdk.staging/
 *.swp
