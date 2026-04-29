@@ -18,6 +18,10 @@ Findings flow into the PRISM pipeline where they're:
 
 ## Setup
 
+**Full step-by-step guide:** [SETUP-GUIDE.md](SETUP-GUIDE.md) — covers console setup, domain verification, GitHub connection, security policies, webhook configuration, identity mapping, and end-to-end verification.
+
+**Quick start** (after completing the console setup in the guide):
+
 ```bash
 # From your project root
 chmod +x /path/to/bootstrapper/security-agent/setup.sh

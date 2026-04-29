@@ -25,7 +25,7 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 - **4-hour workshop** (+ extensions) with hands-on exercises using Claude Code + Bedrock
 - **Spec-driven development** templates compatible with Kiro
 - **AI agent development** — build agents with Strands SDK, MCP, and Amazon Bedrock AgentCore
-- **Bootstrapper code** — git hooks, CI workflows, eval harnesses, [AI-DLC steering files](bootstrapper/aidlc-steering/), [Security Agent setup](bootstrapper/security-agent/), and agent configs teams inherit permanently
+- **Bootstrapper code** — git hooks, CI workflows, eval harnesses, [AI-DLC steering files](bootstrapper/aidlc-steering/), [Security Agent setup](bootstrapper/security-agent/) ([setup guide](bootstrapper/security-agent/SETUP-GUIDE.md)), and agent configs teams inherit permanently
 - **Sample application** with task API + MCP server (with [scope-based auth](sample-app/src/mcp/auth/)) + Strands agent to practice AI-DLC patterns
 
 ## Quick Start
