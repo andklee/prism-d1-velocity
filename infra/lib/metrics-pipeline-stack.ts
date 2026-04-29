@@ -13,6 +13,7 @@ import { IdentityMappingConstruct } from './constructs/identity-mapping-construc
 import * as kms from 'aws-cdk-lib/aws-kms';
 import { PrismVpcConstruct } from './constructs/prism-vpc-construct';
 import { GuardrailEnforcerConstruct } from './constructs/guardrail-enforcer-construct';
+import { SecurityAgentConstruct } from './constructs/security-agent-construct';
 
 export class MetricsPipelineStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;
@@ -21,6 +22,7 @@ export class MetricsPipelineStack extends cdk.Stack {
   public readonly guardrail: BedrockGuardrailConstruct;
   public readonly pricingTable: ModelPricingConstruct;
   public readonly identityMapping: IdentityMappingConstruct;
+  public readonly securityAgent: SecurityAgentConstruct;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -318,6 +320,19 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Bedrock Guardrail (Pillar 4)
     // -------------------------------------------------------
     this.guardrail = new BedrockGuardrailConstruct(this, 'PrismGuardrail', createDefaultPrismGuardrailProps());
+
+    // -------------------------------------------------------
+    // AWS Security Agent
+    // -------------------------------------------------------
+    this.securityAgent = new SecurityAgentConstruct(this, 'SecurityAgent', {
+      agentSpaceName: 'prism-d1-security',
+      description: 'PRISM D1 Security Agent space for design review, code review, and pen testing',
+      kmsKey: prismKmsKey,
+      codeRemediationStrategy: 'DISABLED', // Manual remediation tracked via PRISM pipeline
+      tags: {
+        'prism:pillar': 'security',
+      },
+    });
 
     // -------------------------------------------------------
     // VPC for Lambda isolation (Pillar 6)
