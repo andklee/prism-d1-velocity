@@ -81,7 +81,7 @@ They will:
 
 ---
 
-### [22-30 min] Exercise 3: Configure Alarms
+### [22-27 min] Exercise 3: Configure Alarms
 
 Direct participants to `exercises/03-configure-alarms.md`.
 
@@ -89,6 +89,41 @@ They will:
 1. Create a CloudWatch alarm for AI acceptance rate dropping below 70%
 2. Create an alarm for deployment frequency anomaly
 3. Understand what actionable alerts look like vs. noise
+
+---
+
+### [27-30 min] Extension: CISO Compliance Dashboard (+5 min)
+
+> **Instructor Note:** This is a walkthrough, not a deploy. The CISO dashboard (`PRISM-D1-CISO-Compliance`) deploys automatically with the CDK stack. Use this time to show participants what CISOs and security leaders see — and why it matters for getting AI approved in production.
+
+**Walk through these three sections:**
+
+**1. Security Posture (top row)**
+
+| Widget | What the CISO Sees | What It Means |
+|---|---|---|
+| Open Critical Findings | "2 critical in 30 days" | Active vulnerabilities needing urgent attention |
+| Validated Exploits | "0 exploits" | No confirmed attack paths — good sign |
+| Avg Remediation Time | "18.4 hours" | Teams fixing findings within 24h SLA |
+| Security Scans Run | "47 scans" | Active scanning cadence across teams |
+
+> **Instructor Note:** Ask: "If you were a CISO seeing this dashboard for the first time, would you approve AI in production?" Most will say yes — that's the point. Data turns skepticism into confidence.
+
+**2. AI Code Risk Profile**
+
+Show the side-by-side: security findings in AI-generated code vs human code, and remediation time by origin.
+
+> "This is the slide that ends the 'is AI code safe?' debate. You can see with real data whether AI code has more or fewer vulnerabilities than human code — and whether AI-generated fixes ship faster."
+
+**3. Shift-Left Effectiveness**
+
+Show findings by phase (design review → code review → pen test) over time.
+
+> "If more findings appear at design review and fewer at pen testing, your teams are catching issues earlier. That's the AI-DLC feedback loop working. The shift-left ratio is the proof."
+
+**Connect it to the business:**
+
+> "This dashboard is what gets a CISO to say yes. It's also what gets a CFO to fund expansion — because the remediation SLA data shows security isn't slowing teams down, it's integrated into the workflow. Every scan is a Bedrock API call. The security posture visibility is the trust layer that unlocks the next 10x of AI adoption."
 
 ---
 

@@ -181,14 +181,51 @@ The AI-DLC workflow tracks session state in `.prism/session-state.json`. When a 
 
 ---
 
+---
+
+### [40-45 min] Extension: Security Agent Design Review (+10 min)
+
+> **Instructor Note:** This exercise requires AWS Security Agent access. Skip if not available — the concept can be demonstrated with screenshots instead.
+
+**Context for participants:** You've written a spec. Before you write any code, wouldn't it be valuable to know if the spec has security issues? That's what Security Agent's design review does.
+
+**They will:**
+1. Take the spec they wrote in Exercise 1 (e.g., `specs/user-auth.md`)
+2. Submit it to Security Agent for design review (via console or API)
+3. Review the findings — architectural security risks identified before a single line of code is written
+4. Revise the spec based on findings (e.g., add rate limiting, clarify token storage)
+
+**Talking points:**
+
+> "This is the shift-left moment. Look at the diagram — Security Agent reviews your design document BEFORE code generation. Every finding you fix here is a finding that won't appear in code review or pen testing later."
+
+| What They See | What It Means |
+|---|---|
+| Finding: "No rate limiting specified for auth endpoint" | Spec is missing a non-functional requirement |
+| Finding: "Token storage mechanism not defined" | Spec needs a design constraint about secure storage |
+| Finding: "No session expiry policy" | Spec needs an acceptance criterion for session management |
+
+**The metric that matters:** `FindingSurvivalRate` — the percentage of design review findings that survive to code review or pen testing. Lower = teams are catching issues earlier. This appears in the CISO Compliance dashboard.
+
+**Connect it back:**
+- Design review findings emit `prism.d1.security.design_review` events
+- These are linked to the spec via `spec_ref`
+- When the same vulnerability appears at code review, the system tracks that the design finding "survived"
+- Over time, the shift-left ratio should increase as teams learn to write more secure specs
+
+> **Instructor Note:** If you only have time for one takeaway, make it this: "The spec is your first line of defense. Security Agent proves it."
+
+---
+
 ### [40-45 min] Wrap-Up
 
 **Check for understanding:**
 - "What goes wrong when you skip the spec and go straight to prompting?"
-- "Which section of the spec does Claude Code rely on most?" (Answer: Acceptance criteria -- they define done)
+- "Which section of the spec does Claude Code rely on most?" (Answer: Acceptance criteria — they define done)
 - "How does spec iteration count tell you about spec quality?"
+- "Why run a security design review before writing code?" (Answer: Cheaper to fix a spec than to fix deployed code)
 
-**Bridge to Module 03:** You've now written specs and implemented them. Every commit has AI origin metadata. But that metadata is sitting in git doing nothing. Next module, we wire it into a real metrics pipeline.
+**Bridge to Module 04:** You've now written specs and implemented them. Every commit has AI origin metadata. But that metadata is sitting in git doing nothing. Next module, we wire it into a real metrics pipeline.
 
 ---
 

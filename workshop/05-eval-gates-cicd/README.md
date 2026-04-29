@@ -183,6 +183,65 @@ Findings feed back into the AI-DLC workflow: teams revise specs, design, and cod
 
 ---
 
+---
+
+### [42-45 min] Extension: Security Agent Code Review (+10 min)
+
+> **Instructor Note:** This extension shows how Security Agent code review complements eval gates. Requires Security Agent access or use screenshots.
+
+**Context for participants:** The eval gate checks code quality via Bedrock. Security Agent checks for actual vulnerabilities — injection paths, auth bypasses, secret exposure. They work together.
+
+**They will:**
+1. Open a PR with AI-generated code (from Exercise 2)
+2. See two checks running in parallel:
+   - PRISM eval gate (Bedrock rubric scoring)
+   - Security Agent code review (vulnerability scanning)
+3. Review Security Agent findings alongside eval gate scores
+4. See how SECURITY-09 blocks merge when Critical/High findings are open
+
+**Demo walkthrough:**
+
+```
+PR #42: Add user authentication endpoint
+
+PRISM Eval Gate:          PASS (0.88 / 0.82 threshold)
+  code-quality:           0.92 ✓
+  security-compliance:    0.84 ✓  ← would fail if open CRITICAL findings
+  spec-compliance:        0.91 ✓
+
+Security Agent Code Review:
+  MEDIUM: Input validation missing on email parameter (CWE-20)
+  LOW: Verbose error message includes stack trace (CWE-209)
+  
+Result: PASS (no CRITICAL/HIGH findings)
+```
+
+Now show what happens with a critical finding:
+
+```
+Security Agent Code Review:
+  CRITICAL: SQL injection via unsanitized user input (CWE-89)
+  
+PRISM Eval Gate:          FAIL
+  security-compliance:    0.20 ✗  ← SECURITY-09 forced to 1/5
+  
+Result: MERGE BLOCKED
+```
+
+**Key insight:**
+
+> "The eval gate is a quality score. Security Agent is a vulnerability scanner. The eval gate tells you 'this code is well-written.' Security Agent tells you 'this code is safe.' You need both. And when Security Agent finds a Critical issue, it automatically fails the eval gate via SECURITY-09 — no human intervention needed."
+
+**The feedback loop:**
+- Developer fixes the SQL injection
+- Pushes a new commit
+- Security Agent re-scans, finding resolved
+- Eval gate re-runs, SECURITY-09 passes
+- `prism.d1.security.remediation` event emitted with remediation time
+- Dashboard shows: "Critical finding fixed in 2.3 hours by AI-assisted code"
+
+---
+
 ### [42-45 min] Wrap-Up
 
 **Check for understanding:**
@@ -190,8 +249,9 @@ Findings feed back into the AI-DLC workflow: teams revise specs, design, and cod
 - "Why use Haiku as the judge instead of the same model that wrote the code?"
 - "What threshold would you set for your production pipeline?"
 - "Which rubric would evaluate a new IAM policy Lambda?" (Answer: security-compliance)
+- "What happens if Security Agent finds a CRITICAL vulnerability in your PR?" (Answer: SECURITY-09 forces eval gate to fail, merge blocked)
 
-**Bridge to Module 05:** You now have metrics flowing (Module 03) and quality gates enforcing standards (Module 04). In Module 05, we connect it all to dashboards so the team and leadership can see the full picture.
+**Bridge to Module 06:** You now have metrics flowing (Module 04) and quality gates enforcing standards (Module 05). In Module 06, we connect it all to dashboards so the team and leadership can see the full picture.
 
 ---
 
