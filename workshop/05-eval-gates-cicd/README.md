@@ -187,7 +187,7 @@ Findings feed back into the AI-DLC workflow: teams revise specs, design, and cod
 
 ### [42-45 min] Extension: Security Agent Code Review (+10 min)
 
-> **Instructor Note:** This extension shows how Security Agent code review complements eval gates. Requires Security Agent access or use screenshots.
+> **Instructor Note:** This extension shows how Security Agent code review complements eval gates. Requires Security Agent access or use screenshots. See the [Security Agent Setup Guide](../../bootstrapper/security-agent/SETUP-GUIDE.md) for console configuration steps.
 
 **Context for participants:** The eval gate checks code quality via Bedrock. Security Agent checks for actual vulnerabilities — injection paths, auth bypasses, secret exposure. They work together.
 

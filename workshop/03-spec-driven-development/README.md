@@ -202,7 +202,7 @@ These steering files work with Claude Code (via CLAUDE.md), Kiro (via .kiro/stee
 
 ### [40-45 min] Extension: Security Agent Design Review (+10 min)
 
-> **Instructor Note:** This exercise requires AWS Security Agent access. Skip if not available — demonstrate with screenshots instead.
+> **Instructor Note:** This exercise requires AWS Security Agent access. Skip if not available — demonstrate with screenshots instead. See the [Security Agent Setup Guide](../../bootstrapper/security-agent/SETUP-GUIDE.md) for console configuration steps.
 
 **Context:** You've written a spec. Before writing code, Security Agent reviews it for architectural security risks.
 
