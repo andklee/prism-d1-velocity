@@ -44,11 +44,25 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 
 ### Prerequisites
 
+Run the prism-cli command to verify and setup everything:
+
 ```bash
-./scripts/setup.sh
+bash prism-cli.sh workshop verify-setup
 ```
 
-Or install manually: AWS Account with Bedrock access, Node.js 20+, Python 3.11+, AWS CLI v2, CDK v2, Claude Code CLI, Git 2.40+, jq, GitHub CLI.
+Or install manually:
+
+- AWS Account with Bedrock access (Claude models enabled)
+- Node.js 20+ and npm
+- Python 3.11+ (for Strands Agent)
+- AWS CLI v2 and CDK v2 (`npm install -g aws-cdk`)
+- Claude Code CLI configured for Bedrock (`export CLAUDE_CODE_USE_BEDROCK=1`)
+- Git 2.40+, jq, GitHub CLI
+
+The setup script supports flags:
+- `--skip-aws` — skip AWS credential and Bedrock checks (for offline prep)
+- `--skip-kiro` — skip Kiro IDE check
+- `--verify-only` — only verify, don't install anything
 
 ### Deploy the Metrics Platform
 
@@ -63,7 +77,44 @@ This deploys: EventBridge bus, 8 Lambda processors, DynamoDB tables (KMS-encrypt
 
 ### Assess a Customer
 
-Run the [PRISM Assessment](assessment/README.md) to determine maturity level and onboarding track. See the [full methodology guide](assessment/ASSESSMENT-GUIDE.md) for scanner logic, interview rubrics, and scoring formulas.
+#### Web Assessment Tool (Recommended)
+
+The prism-cli includes a local web interface for running the full assessment flow — scan, interview, and report generation — in a browser.
+
+```bash
+bash prism-cli.sh assessment web
+# Opens http://localhost:3120
+```
+
+The web tool supports two workflows:
+
+**Self-service (customer runs it themselves):**
+1. Customer clones this repo and runs `bash prism-cli.sh assessment web`
+2. Scans their own repository from the web UI
+3. Exports the scan results as JSON and sends the file to you
+4. Optionally completes the interview themselves and sends the final HTML report
+
+**SA-led (you run it):**
+1. Import the customer's scan JSON into the web UI (skip re-scanning)
+2. Conduct the interview using the built-in guide with scoring rubrics
+3. Generate the HTML report directly in the browser
+
+**AI Agent interview:**
+1. After scanning (or importing a scan), choose "AI Agent Interview" from the next steps
+2. An AI agent conducts the 20-question interview conversationally, asks follow-up probes, and scores responses against the rubrics automatically
+3. The agent uses context from prior answers to ask smarter questions and avoid repetition
+4. When complete, generates the same assessment report as the manual flow
+
+The AI agent requires **Amazon Bedrock access** — specifically the `us.anthropic.claude-sonnet-4-6` model (Claude Sonnet 4.6 via cross-region inference). To set this up:
+- Enable model access in the [Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess) (Anthropic → Claude Sonnet 4.6)
+- Configure AWS credentials locally (`aws configure`, SSO, or environment variables)
+- The agent validates Bedrock access on startup and shows setup instructions if anything is missing
+
+The interview form includes the full question bank, scoring rubrics, and scanner-informed focus areas. Reports can be printed or saved as PDF from the browser.
+
+#### Manual Assessment
+
+For a CLI-only or fully manual workflow, run the [PRISM Assessment](assessment/README.md) to determine maturity level and onboarding track. See the [full methodology guide](assessment/ASSESSMENT-GUIDE.md) for scanner logic, interview rubrics, and scoring formulas.
 
 ### Run the Workshop
 
