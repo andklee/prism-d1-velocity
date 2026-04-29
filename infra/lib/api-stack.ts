@@ -226,6 +226,18 @@ export class ApiStack extends cdk.Stack {
       requestModels: { 'application/json': metricsModel },
     });
 
+    // POST /security-findings (Security Agent webhook)
+    const securityResource = this.api.root.addResource('security-findings');
+    securityResource.addMethod('POST', lambdaIntegration, {
+      apiKeyRequired: true,
+    });
+
+    // GET /security-findings/{team_id}
+    const teamSecurityResource = securityResource.addResource('{team_id}');
+    teamSecurityResource.addMethod('GET', lambdaIntegration, {
+      apiKeyRequired: true,
+    });
+
     // -------------------------------------------------------
     // cdk-nag suppressions
     // -------------------------------------------------------

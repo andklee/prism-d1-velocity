@@ -83,6 +83,14 @@ export async function handler(event: ApiGatewayEvent): Promise<ApiGatewayRespons
       return await handleGetMetrics(event);
     }
 
+    if (event.httpMethod === 'POST' && event.path === '/security-findings') {
+      return await handlePostSecurityFindings(event);
+    }
+
+    if (event.httpMethod === 'GET' && event.path.startsWith('/security-findings/')) {
+      return await handleGetSecurityFindings(event);
+    }
+
     return respond(404, { error: 'Not Found', message: `No route for ${event.httpMethod} ${event.path}` });
   } catch (err) {
     console.error('Unhandled error:', err);
@@ -374,6 +382,90 @@ function validateMetricPayload(payload: MetricPayload): string | null {
     return 'detail.timestamp is required';
   }
   return null;
+}
+
+// ---- POST /security-findings ----
+
+async function handlePostSecurityFindings(event: ApiGatewayEvent): Promise<ApiGatewayResponse> {
+  const body = JSON.parse(event.body ?? '{}');
+  const findings = body.findings ?? [body];
+
+  if (!Array.isArray(findings) || findings.length === 0) {
+    return respond(400, { error: 'findings array is required' });
+  }
+
+  const entries = findings.map((finding: any) => ({
+    Source: 'prism.d1.velocity',
+    DetailType: `prism.d1.security.${finding.type ?? finding.phase ?? 'code_review'}`,
+    EventBusName: EVENT_BUS_NAME,
+    Detail: JSON.stringify({
+      team_id: finding.team_id ?? 'unknown',
+      repo: finding.repository ?? finding.repo ?? 'unknown',
+      timestamp: finding.found_at ?? new Date().toISOString(),
+      prism_level: 3,
+      metric: { name: 'security_finding', value: 1, unit: 'count' },
+      security_agent_finding: finding,
+    }),
+  }));
+
+  // Emit in batches of 10
+  for (let i = 0; i < entries.length; i += 10) {
+    await ebClient.send(new PutEventsCommand({ Entries: entries.slice(i, i + 10) }));
+  }
+
+  return respond(200, { message: 'OK', findingsProcessed: entries.length });
+}
+
+// ---- GET /security-findings/{team_id} ----
+
+async function handleGetSecurityFindings(event: ApiGatewayEvent): Promise<ApiGatewayResponse> {
+  const teamId = event.pathParameters?.team_id;
+  if (!teamId) {
+    return respond(400, { error: 'team_id path parameter is required' });
+  }
+
+  const hours = parseInt(event.queryStringParameters?.hours ?? '168', 10); // Default 7 days
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+  const securityTypes = [
+    'prism.d1.security.design_review',
+    'prism.d1.security.code_review',
+    'prism.d1.security.pen_test',
+  ];
+
+  const allFindings: any[] = [];
+
+  for (const detailType of securityTypes) {
+    const result = await dynamoClient.send(
+      new QueryCommand({
+        TableName: EVENTS_TABLE,
+        IndexName: 'by-detail-type',
+        KeyConditionExpression: 'detail_type = :dt AND sk >= :since',
+        ExpressionAttributeValues: {
+          ':dt': { S: detailType },
+          ':since': { S: since },
+        },
+        ScanIndexForward: false,
+        Limit: 100,
+      }),
+    );
+
+    if (result.Items) {
+      for (const item of result.Items) {
+        const data = JSON.parse(item.data?.S ?? '{}');
+        if (data.team_id === teamId) {
+          allFindings.push({
+            detail_type: detailType,
+            timestamp: item.sk?.S,
+            finding_id: item.finding_id?.S,
+            ...data,
+          });
+        }
+      }
+    }
+  }
+
+  return respond(200, { team_id: teamId, findings: allFindings, count: allFindings.length });
 }
 
 function respond(statusCode: number, body: Record<string, unknown>): ApiGatewayResponse {

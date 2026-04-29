@@ -14,6 +14,7 @@ Everything your team needs to adopt AI-native software development practices. In
 | `aidlc-steering/` | AI-DLC development workflow rules for Claude Code, Kiro, and Q Developer (adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows)) |
 | `agent-configs/` | AgentCore Runtime, Memory, Gateway, and Guardrail templates |
 | `mcp-servers/` | Reference MCP server implementations |
+| `security-agent/` | AWS Security Agent setup script, GitHub workflow, and configuration for design review, code review, and pen testing integration |
 
 ## Quickstart
 

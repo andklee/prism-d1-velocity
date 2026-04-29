@@ -1,0 +1,167 @@
+# prism-security-agent-scan.yml — Trigger Security Agent scans and forward findings to PRISM.
+#
+# Copy this file to .github/workflows/prism-security-agent-scan.yml
+#
+# Required setup:
+#   - OIDC provider configured for GitHub Actions
+#   - Repository secret PRISM_API_KEY with the PRISM D1 API key
+#   - Repository variable PRISM_API_URL with the PRISM D1 API Gateway URL
+#   - Repository variable PRISM_TEAM_ID with your team identifier
+#   - Repository variable PRISM_AWS_ROLE_ARN with the OIDC role ARN
+#   - AWS Security Agent enabled in your account
+
+name: PRISM Security Agent Scan
+
+on:
+  # Design review on spec changes
+  push:
+    paths:
+      - 'specs/**'
+      - 'docs/design/**'
+    branches: [main]
+
+  # Code review on PRs
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+  # Pen test on deployment
+  deployment_status:
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Scan type (design_review, code_review, pen_test)'
+        required: true
+        default: 'code_review'
+        type: choice
+        options:
+          - design_review
+          - code_review
+          - pen_test
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.PRISM_AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Determine scan type
+        id: scan-type
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Check if specs changed
+            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -E '^(specs/|docs/design/)' || true)
+            if [[ -n "${CHANGED}" ]]; then
+              echo "type=design_review" >> "$GITHUB_OUTPUT"
+              echo "Detected spec changes — triggering design review"
+            else
+              echo "type=none" >> "$GITHUB_OUTPUT"
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "type=code_review" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "deployment_status" ]]; then
+            if [[ "${{ github.event.deployment_status.state }}" == "success" ]]; then
+              echo "type=pen_test" >> "$GITHUB_OUTPUT"
+            else
+              echo "type=none" >> "$GITHUB_OUTPUT"
+            fi
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "type=${{ inputs.scan_type }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Security Agent scan
+        if: steps.scan-type.outputs.type != 'none'
+        id: scan
+        run: |
+          SCAN_TYPE="${{ steps.scan-type.outputs.type }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPO="${{ github.repository }}"
+
+          echo "Running ${SCAN_TYPE} scan on ${REPO}..."
+
+          # Note: AWS Security Agent API calls would go here.
+          # Since Security Agent is in preview, this workflow forwards
+          # findings via the PRISM API endpoint.
+          #
+          # When Security Agent GA launches, replace this section with:
+          #   aws securityagent start-assessment \
+          #     --assessment-type "${SCAN_TYPE}" \
+          #     --target-repository "${REPO}" \
+          #     --webhook-url "${{ vars.PRISM_API_URL }}/security-findings"
+          #
+          # For now, this step is a placeholder that can be triggered
+          # manually or via the Security Agent console.
+
+          echo "scan_type=${SCAN_TYPE}" >> "$GITHUB_OUTPUT"
+          echo "timestamp=${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+          echo "Security Agent scan initiated (${SCAN_TYPE})"
+
+      - name: Forward findings to PRISM
+        if: steps.scan-type.outputs.type != 'none'
+        run: |
+          # This step polls for scan results and forwards them to PRISM.
+          # Replace with actual Security Agent API polling when available.
+          #
+          # Example of how findings would be forwarded:
+          #
+          # FINDINGS=$(aws securityagent get-assessment-findings \
+          #   --assessment-id "${ASSESSMENT_ID}" \
+          #   --output json)
+          #
+          # curl -X POST "${{ vars.PRISM_API_URL }}/security-findings" \
+          #   -H "x-api-key: ${{ secrets.PRISM_API_KEY }}" \
+          #   -H "Content-Type: application/json" \
+          #   -d "${FINDINGS}"
+
+          echo "Findings would be forwarded to PRISM API at ${{ vars.PRISM_API_URL }}/security-findings"
+
+      - name: Emit scan event to PRISM
+        if: steps.scan-type.outputs.type != 'none'
+        run: |
+          SCAN_EVENT=$(jq -n \
+            --arg team_id "${{ vars.PRISM_TEAM_ID }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg timestamp "${{ steps.scan.outputs.timestamp }}" \
+            --arg scan_type "${{ steps.scan.outputs.scan_type }}" \
+            '{
+              "source": "prism.d1.velocity",
+              "detail-type": ("prism.d1.security." + $scan_type),
+              "detail": {
+                "team_id": $team_id,
+                "repo": $repo,
+                "timestamp": $timestamp,
+                "prism_level": 3,
+                "metric": {
+                  "name": "security_scan_initiated",
+                  "value": 1,
+                  "unit": "count"
+                }
+              }
+            }')
+
+          aws events put-events \
+            --region us-west-2 \
+            --entries "[{
+              \"Source\": \"prism.d1.velocity\",
+              \"DetailType\": \"prism.d1.security.${{ steps.scan.outputs.scan_type }}\",
+              \"EventBusName\": \"prism-d1-metrics\",
+              \"Detail\": $(echo "${SCAN_EVENT}" | jq -c '.detail' | jq -Rs '.')
+            }]" || echo "Warning: Failed to emit scan event (non-blocking)"
