@@ -154,30 +154,7 @@ echo 'PRISM_TEAM_ID=your-team-name' >> .env
 
 ## Architecture
 
-```
-Developer Workstation              AWS Metrics Platform
-────────────────────              ────────────────────
-Claude Code ──────┐
-Kiro Specs ───────┤               ┌──────────────┐
-Git Hooks ────────┼── API GW ───→ │ EventBridge  │
-GitHub Actions ───┤               └──────┬───────┘
-Bedrock Evals ────┤                      │
-Strands Agents ───┘               ┌──────▼───────┐
-      │                           │   Lambda     │  enrich + normalize
-  MCP Server ←── Tool Discovery   └──────┬───────┘
-      │                                  │
-  AgentCore ←── Runtime + Ops    ┌───────┼────────┐
-                                 ▼       ▼        ▼
-                             DynamoDB DynamoDB CloudWatch
-                             (events) (metadata)   │
-                                 │       │        │
-                                 └───────┼────────┘
-                                         ▼
-                              ┌──────────────────┐
-                              │    QuickSight    │  Executive Readout
-                              │    CloudWatch    │  Team Dashboard
-                              └──────────────────┘
-```
+![PRISM D1 Velocity Architecture](assets/images/architecture-overview.svg)
 
 ## PRISM Maturity Levels (D1 Velocity)
 

@@ -39,23 +39,7 @@
 
 **All three surfaces use the same backend (Amazon Bedrock) and emit the same PRISM metrics.** The choice is about developer experience, not capability.
 
-```
-                    ┌──────────────────────────┐
-                    │    Amazon Bedrock         │
-                    │    (Claude models)        │
-                    └────┬────────┬────────┬───┘
-                         │        │        │
-                    ┌────▼──┐ ┌───▼────┐ ┌─▼──────────┐
-                    │ Kiro  │ │ Claude │ │ Claude     │
-                    │ IDE   │ │ Code   │ │ Code CLI   │
-                    │       │ │ in IDE │ │            │
-                    └───┬───┘ └───┬────┘ └─────┬──────┘
-                        │         │            │
-                    ┌───▼─────────▼────────────▼───┐
-                    │  Same git hooks, same eval    │
-                    │  gates, same PRISM metrics    │
-                    └──────────────────────────────┘
-```
+![AI Surfaces — Same Backend, Same Metrics](../../assets/images/ai-surfaces.svg)
 
 Present the three surfaces:
 
@@ -155,34 +139,7 @@ They'll:
 
 Draw the loop on the whiteboard:
 
-```
-     +-----------+
-     |  Write    |
-     |  Spec     |<---------+
-     +-----+-----+          |
-           |                 |
-           v                 |
-     +-----------+          |
-     | AI        |    Spec gaps
-     | Implement |    revealed
-     | (any      |          |
-     |  surface) |          |
-     +-----+-----+          |
-           |                 |
-           v                 |
-     +-----------+          |
-     | Validate  |----------+
-     | vs. ACs   |
-     +-----------+
-           |
-           | All ACs pass
-           v
-     +-----------+
-     |  Commit   |
-     |  (with    |
-     |  trailers)|
-     +-----------+
-```
+![Spec-Implementation Loop](../../assets/images/spec-implementation-loop.svg)
 
 **Key metrics that emerge from this loop:**
 - **Spec-to-Code Turnaround Time:** Time from spec completion to passing implementation

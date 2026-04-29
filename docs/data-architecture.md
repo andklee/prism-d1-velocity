@@ -13,36 +13,7 @@
 
 ## End-to-End Data Flow
 
-```
-Git Hooks / GitHub Webhooks / CI Workflows / Direct API / CloudTrail (Bedrock)
-                        |
-                        v
-              API Gateway (POST /metrics)       CloudTrail (Bedrock API calls)
-              50 req/s burst, 100K/month         └─→ EventBridge (default bus)
-                        |                              └─→ token-processor Lambda
-                        v                                    └─→ prism.d1.token
-            EventBridge (prism-d1-metrics)  ←──────────────────────┘
-            14 event types routed by rules
-                        |
-           ┌────────────┼───────────────────────────────────┐
-           ▼            ▼                                   ▼
-    metrics-processor   Specialized Lambdas           DynamoDB read events
-    (triple-write)      • token-commit-correlator     (via CloudTrail)
-                        • defect-correlator                  |
-    → DynamoDB Events   • spec-to-code-calculator            ▼
-      (KMS encrypted)   • exfiltration-detector      exfiltration-detector
-    → DynamoDB Meta       ↓                           → prism.d1.security
-      (KMS encrypted)   (emit derived events back
-    → CloudWatch          to EventBridge)
-                  \    |    /
-                   v   v   v
-            Dashboards & Queries
-            - CloudWatch Team Velocity (real-time)
-            - CloudWatch Executive Readout (real-time)
-            - QuickSight AI-DORA Analysis (near real-time)
-            - QuickSight PRISM Level Tracker (near real-time)
-            - API GET /metrics/{team_id} (on-demand)
-```
+![End-to-End Data Flow](data-flow.svg)
 
 ---
 

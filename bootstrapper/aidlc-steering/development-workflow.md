@@ -98,6 +98,8 @@ Before coding:
 
 ## Phase 3: Security Agent Review (When Configured)
 
+![Security Agent Feedback Loop](../../assets/images/security-agent-feedback-loop.svg)
+
 AWS Security Agent performs automated security analysis at three points:
 
 | AI-DLC Phase | Security Agent Action | Artifact Reviewed |
