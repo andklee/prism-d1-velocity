@@ -198,9 +198,9 @@ export class SecurityAgentConstruct extends Construct {
     id: string,
     props: {
       title: string;
-      endpoints: Array<{ url: string }>;
+      endpoints: Array<{ uri: string }>;
       serviceRole?: iam.IRole;
-      vpcConfig?: { securityGroupIds: string[]; subnetIds: string[] };
+      vpcConfig?: { securityGroupArns: string[]; subnetArns: string[] };
       excludeRiskTypes?: string[];
       codeRemediationStrategy?: 'AUTOMATIC' | 'DISABLED';
     },
@@ -211,21 +211,19 @@ export class SecurityAgentConstruct extends Construct {
       title: props.title,
       assets: {
         endpoints: props.endpoints.map((ep) => ({
-          url: ep.url,
+          uri: ep.uri,
         })),
       },
       ...(props.excludeRiskTypes && { excludeRiskTypes: props.excludeRiskTypes }),
       ...(props.codeRemediationStrategy && { codeRemediationStrategy: props.codeRemediationStrategy }),
       ...(props.vpcConfig && {
         vpcConfig: {
-          securityGroupIds: props.vpcConfig.securityGroupIds,
-          subnetIds: props.vpcConfig.subnetIds,
+          securityGroupArns: props.vpcConfig.securityGroupArns,
+          subnetArns: props.vpcConfig.subnetArns,
         },
       }),
       logConfig: {
-        cloudWatchLog: {
-          logGroupName: `/prism/security-agent/${this.node.id}`,
-        },
+        logGroup: `/prism/security-agent/${this.node.id}`,
       },
     });
   }
