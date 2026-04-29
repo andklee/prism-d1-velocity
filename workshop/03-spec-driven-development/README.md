@@ -146,6 +146,41 @@ These become dashboard metrics in Module 05.
 
 ---
 
+### Spec-Driven Eval Gates
+
+Specs don't just guide implementation — they power automated quality gates.
+
+**Spec-Compliance Eval Rubric:**
+
+When a commit includes a `Spec-Ref:` trailer (e.g., `Spec-Ref: specs/user-search.md`), the PRISM eval gate runs an additional `spec-compliance` rubric that evaluates:
+
+| Criterion | Weight | What It Checks |
+|---|---|---|
+| Requirement coverage | 0.35 | All acceptance criteria from the spec are implemented |
+| Interface adherence | 0.25 | Function signatures and API contracts match the spec |
+| Edge case handling | 0.20 | Edge cases described in the spec are handled |
+| Spec intent fidelity | 0.20 | Implementation captures the spirit, not just the letter |
+
+The eval runner supports a `--spec` flag to pass the spec file alongside the code:
+
+```bash
+./eval-harness/run-eval.sh rubrics/spec-compliance.json src/handler.ts --spec specs/user-search.md
+```
+
+**AI-DLC Workflow Integration:**
+
+The PRISM bootstrapper includes AI-DLC steering files (adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows)) that enforce a structured inception → construction → quality gate workflow. When using Claude Code or Kiro, the steering files guide the agent through:
+
+1. **Inception** — workspace detection, requirements analysis, spec creation
+2. **Construction** — design, code generation, build & test
+3. **Quality Gate** — eval gate runs automatically on PR
+
+**Session Continuity:**
+
+The AI-DLC workflow tracks session state in `.prism/session-state.json`. When a developer returns to continue work across sessions, the agent can resume from where it left off — including which spec is being implemented, what decisions were made, and which files were modified.
+
+---
+
 ### [40-45 min] Wrap-Up
 
 **Check for understanding:**

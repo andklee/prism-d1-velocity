@@ -146,6 +146,45 @@ They will:
 
 ---
 
+### Key Concepts: MCP Authorization & Agent Safety
+
+**MCP Scope-Based Authorization:**
+
+The MCP server in `sample-app/src/mcp/` includes a scope-based authorization layer. When agents connect, they negotiate a session with granted scopes:
+
+| Scope | Grants Access To | Risk Level |
+|---|---|---|
+| `tasks:read` | `list_tasks`, `search_tasks` | Low |
+| `tasks:write` | `create_task`, `update_task` | Medium |
+| `tasks:delete` | `delete_task` | High |
+
+Agents can request a scope profile (`read-only`, `read-write`, `admin`) during session creation. Tool calls outside granted scopes are denied and logged. See `sample-app/src/mcp/auth/` for the implementation.
+
+> **Instructor Note:** This is a critical governance concept. Ask: "What happens if an agent tries to delete a task but only has read-write access?" Answer: the MCP server returns an `Unauthorized` error with the missing scopes, and the tool call is logged as denied in the PRISM metrics pipeline (`prism.d1.mcp.tool_call` event).
+
+**Bedrock Guardrails:**
+
+Agents deployed via AgentCore can have Bedrock Guardrails attached for content safety:
+- **Content filters** — block hate speech, violence, prompt attacks
+- **PII protection** — automatically anonymize emails/phones, block SSNs/credit cards
+- **Denied topics** — prevent agents from discussing competitors or giving financial advice
+
+Every guardrail trigger emits a `prism.d1.guardrail` event with the category, action taken (BLOCK vs ANONYMIZE), and agent name. These appear in the Guardrails & Safety section of the Team Velocity dashboard.
+
+**Agent Metrics Emitted:**
+
+| Metric | CloudWatch Name | Description |
+|---|---|---|
+| Invocations | `AgentInvocationCount` | Total agent executions |
+| Steps | `AgentStepCount` | Reasoning steps per invocation |
+| Tools used | `AgentToolInvocationCount` | MCP tool calls per invocation |
+| Duration | `AgentDurationMs` | Execution time |
+| Tokens | `AgentTokensUsed` | LLM token consumption |
+| Guardrails | `AgentGuardrailTriggerCount` | Safety triggers per invocation |
+| Success | `AgentSuccessRate` | Completion without errors |
+
+---
+
 ### [70-85 min] Extension Exercise 4: Deploy to AgentCore
 
 Direct participants to `exercises/04-deploy-to-agentcore.md`.

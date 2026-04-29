@@ -129,12 +129,56 @@ They will:
 
 ---
 
+---
+
+### Smart Rubric Routing
+
+The eval gate workflow automatically selects the best rubric based on the file being evaluated:
+
+| File Pattern | Rubric | Focus |
+|---|---|---|
+| `agent`, `assistant`, `orchestrat`, `workflow`, `chain` | `agent-quality.json` | Step count, tool correctness, agent loop quality |
+| `auth`, `security`, `guard`, `policy`, `iam`, `crypto` | `security-compliance.json` | OWASP, encryption, input validation, least privilege |
+| `api`, `handler`, `route`, `controller` | `api-response-quality.json` | Contract adherence, status codes, error format |
+| Everything else | `code-quality.json` | Correctness, readability, testing, performance |
+
+**Spec-Compliance Pass:**
+
+If a commit has a `Spec-Ref:` trailer pointing to a spec file, the eval gate runs an additional `spec-compliance` rubric that checks:
+- Requirement coverage (35% weight) — are all acceptance criteria implemented?
+- Interface adherence (25%) — do signatures match the spec?
+- Edge case handling (20%) — are spec-defined edge cases covered?
+- Spec intent fidelity (20%) — does the code capture the spirit of the spec?
+
+Use the `--spec` flag for local testing:
+
+```bash
+./eval-harness/run-eval.sh rubrics/spec-compliance.json src/handler.ts --spec specs/user-search.md
+```
+
+**All 5 Rubrics:**
+
+| Rubric | Criteria | Pass Threshold |
+|---|---|---|
+| `code-quality.json` | 7 criteria (correctness, readability, maintainability, error handling, testing, performance, docs) | 0.82 |
+| `api-response-quality.json` | 6 criteria (contract, status codes, validation, pagination, errors, idempotency) | 0.82 |
+| `agent-quality.json` | 5 criteria (reasoning, tool selection, error recovery, efficiency, output quality) | 0.82 |
+| `security-compliance.json` | 9 criteria (auth, injection, secrets, data protection, IAM, errors, HTTP headers, logging, dependencies) | 0.82 |
+| `spec-compliance.json` | 4 criteria (requirement coverage, interface adherence, edge cases, intent fidelity) | 0.82 |
+
+**Per-Rubric Metrics:**
+
+Every eval emits a `prism.d1.eval` event with the rubric name, enabling the Team Velocity dashboard to show pass rates broken down by rubric type. This helps teams see which categories of AI code need the most improvement.
+
+---
+
 ### [42-45 min] Wrap-Up
 
 **Check for understanding:**
 - "What's the difference between a unit test and an eval gate?"
 - "Why use Haiku as the judge instead of the same model that wrote the code?"
 - "What threshold would you set for your production pipeline?"
+- "Which rubric would evaluate a new IAM policy Lambda?" (Answer: security-compliance)
 
 **Bridge to Module 05:** You now have metrics flowing (Module 03) and quality gates enforcing standards (Module 04). In Module 05, we connect it all to dashboards so the team and leadership can see the full picture.
 

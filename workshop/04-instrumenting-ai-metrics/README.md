@@ -108,6 +108,54 @@ They will:
 
 ---
 
+---
+
+### Beyond Commit Metrics: The Full Event Pipeline
+
+The git hooks and CI workflow emit `prism.d1.commit` and `prism.d1.pr` events. But the PRISM pipeline captures **14 event types** across the full AI development lifecycle:
+
+| Event Type | Source | What It Captures |
+|---|---|---|
+| `prism.d1.commit` | Git hooks, GitHub webhook | AI origin, model, files changed, diff stats |
+| `prism.d1.pr` | GitHub webhook | Lead time, AI-to-merge ratio, acceptance rate, spec-to-code hours |
+| `prism.d1.deploy` | GitHub webhook | Deployment frequency, change failure rate |
+| `prism.d1.eval` | Eval gate workflow | Eval score, rubric name, pass/fail, per-criterion scores |
+| `prism.d1.agent` | Agent runtime (metrics.py) | Steps, tools, tokens, duration, guardrail triggers |
+| `prism.d1.agent.eval` | Agent eval workflow | Agent quality scores |
+| `prism.d1.guardrail` | Agent runtime | Trigger category, type, action (BLOCK/ANONYMIZE), agent name |
+| `prism.d1.mcp.tool_call` | MCP audit logger | Tool name, session, scopes, authorized flag, duration |
+| `prism.d1.token` | CloudTrail → token-processor Lambda | Model, input/output tokens, cost USD, developer, IAM principal |
+| `prism.d1.cost` | token-commit-correlator Lambda | Cost per commit, total tokens, models used |
+| `prism.d1.security` | exfiltration-detector Lambda | Alert type, table, principal, read count |
+| `prism.d1.quality` | defect-correlator Lambda | AI defect rate, human defect rate, commit counts |
+| `prism.d1.incident` | (Planned) | Incident tracking |
+| `prism.d1.assessment` | Assessment API | PRISM level assessment |
+
+**Specialized Lambda Processors:**
+
+Beyond the core metrics-processor, five specialized Lambdas handle derived calculations:
+
+| Lambda | Trigger | What It Does |
+|---|---|---|
+| `token-processor` | CloudTrail Bedrock API calls | Extracts tokens, looks up pricing + developer identity, emits `prism.d1.token` |
+| `token-commit-correlator` | `prism.d1.commit` events | Matches token events within 5-min window, emits `prism.d1.cost` |
+| `defect-correlator` | Failed `prism.d1.deploy` events | Queries commit origins, calculates AI vs human defect rates |
+| `spec-to-code-calculator` | Merged `prism.d1.pr` events | Finds earliest spec commit, calculates hours to merge |
+| `exfiltration-detector` | CloudTrail DynamoDB read events | Monitors for anomalous read volumes on PRISM tables |
+
+**New CloudWatch Metrics (beyond DORA + AI-DORA):**
+
+| Category | Metrics |
+|---|---|
+| Eval Gates | `EvalGatePassRateByRubric`, `EvalScore` (per rubric) |
+| Guardrails | `GuardrailTriggerCount`, `GuardrailBlockCount`, `GuardrailAnonymizeCount` |
+| MCP Governance | `MCPToolCallCount`, `MCPAuthDeniedCount`, `MCPToolCallDurationMs` |
+| Cost | `BedrockTokensInput`, `BedrockTokensOutput`, `BedrockCostUSD`, `CostPerCommit`, `TokenEfficiency` |
+| Quality | `PostMergeDefectRateAI`, `PostMergeDefectRateHuman` |
+| Security | `ExfiltrationAlertCount` |
+
+---
+
 ### [42-45 min] Wrap-Up
 
 **Check for understanding:**
