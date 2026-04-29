@@ -83,7 +83,7 @@
     },
     {
       "name": "http_security_headers",
-      "weight": 0.05,
+      "weight": 0.04,
       "description": "HTTP security headers are set on all HTML-serving endpoints (CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy).",
       "references": ["SECURITY-04"],
       "scoring": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "structured_logging",
-      "weight": 0.05,
+      "weight": 0.04,
       "description": "Application uses structured logging with correlation IDs, directed to a centralized log service.",
       "references": ["SECURITY-02", "SECURITY-03"],
       "scoring": {
@@ -109,7 +109,7 @@
     },
     {
       "name": "dependency_security",
-      "weight": 0.05,
+      "weight": 0.04,
       "description": "No known vulnerable dependencies. Versions pinned. Unused dependencies removed.",
       "references": ["SECURITY-08"],
       "scoring": {
@@ -118,6 +118,19 @@
         "3": "Some moderate vulnerabilities present. Lockfile exists but not all versions pinned.",
         "2": "Known vulnerabilities in dependencies. No lockfile or unpinned versions.",
         "1": "Critical vulnerabilities in dependencies. No dependency management."
+      }
+    },
+    {
+      "name": "security_agent_findings",
+      "weight": 0.08,
+      "description": "No unresolved Critical/High findings from AWS Security Agent on this codebase.",
+      "references": ["SECURITY-09"],
+      "scoring": {
+        "5": "No open findings from Security Agent. All historical findings remediated within SLA.",
+        "4": "No Critical/High findings. Minor (LOW/MEDIUM) findings with active remediation plans.",
+        "3": "Open HIGH findings with remediation in progress. No Critical.",
+        "2": "Open CRITICAL findings or HIGH findings past remediation SLA.",
+        "1": "Multiple CRITICAL findings or validated pen test exploits unresolved."
       }
     }
   ],

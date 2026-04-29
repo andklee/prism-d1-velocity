@@ -76,6 +76,21 @@ Error responses must not leak internals:
 - Review transitive dependencies for known issues
 - Remove unused dependencies
 
+## SECURITY-09: AWS Security Agent Finding Resolution
+
+All Critical/High findings from AWS Security Agent must be resolved before code can pass the eval gate:
+- **Design review findings** should be addressed before code generation begins
+- **Code review findings** must be resolved before PR merge
+- **Pen test findings** with validated exploits are immediate blockers
+- Remediation SLA: 24 hours for Critical, 72 hours for High, 30 days for Medium
+
+The Security Agent operates across three AI-DLC phases:
+1. **Design Review** — analyzes design documents/specs for architectural security risks
+2. **Code Review** — scans PRs against organizational security policies
+3. **Pen Testing** — validates deployed applications against OWASP Top 10 and business logic flaws
+
+Findings feed back into the AI-DLC workflow: the engineering team reviews findings and adjusts requirements, design, and code accordingly. This feedback loop is tracked by the `FindingSurvivalRate` metric — the percentage of design-phase findings that survive to code review or pen testing. Lower survival rate = teams catching issues earlier.
+
 ---
 
 ## PRISM Integration
@@ -85,11 +100,14 @@ These rules map to the PRISM `security-compliance.json` eval rubric:
 | Security Rule | Rubric Criterion | Weight |
 |---|---|---|
 | SECURITY-01 (Encryption) | `data_protection` | 0.15 |
-| SECURITY-02, 03 (Logging) | `error_information_leakage` | 0.10 |
-| SECURITY-04, 05 (Headers, Input) | `injection_prevention` | 0.20 |
-| SECURITY-06 (IAM) | `least_privilege` | 0.15 |
-| SECURITY-07 (Errors) | `error_information_leakage` | 0.10 |
-| SECURITY-01 (Auth) | `authentication_authorization` | 0.20 |
-| SECURITY-03 (Secrets) | `secret_management` | 0.20 |
+| SECURITY-02, 03 (Logging) | `structured_logging` | 0.04 |
+| SECURITY-04, 05 (Headers, Input) | `injection_prevention` | 0.18 |
+| SECURITY-06 (IAM) | `least_privilege` | 0.12 |
+| SECURITY-07 (Errors) | `error_information_leakage` | 0.07 |
+| SECURITY-01 (Auth) | `authentication_authorization` | 0.18 |
+| SECURITY-03 (Secrets) | `secret_management` | 0.15 |
+| SECURITY-04 (Headers) | `http_security_headers` | 0.04 |
+| SECURITY-08 (Dependencies) | `dependency_security` | 0.04 |
+| SECURITY-09 (Security Agent) | `security_agent_findings` | 0.08 |
 
 The eval gate runs Bedrock against this rubric on every PR. Score below 0.82 blocks merge.

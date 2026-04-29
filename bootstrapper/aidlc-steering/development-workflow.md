@@ -96,7 +96,32 @@ Before coding:
 
 ---
 
-## Phase 3: Quality Gate (PRISM Eval)
+## Phase 3: Security Agent Review (When Configured)
+
+AWS Security Agent performs automated security analysis at three points:
+
+| AI-DLC Phase | Security Agent Action | Artifact Reviewed |
+|---|---|---|
+| After Design (Phase 1.3) | **Design Review** | Spec / design document |
+| After Code (Phase 2.2) | **Code Review** | PR / source code |
+| After Deploy (Staging) | **Pen Testing** | Deployed application |
+
+**The feedback loop:** Security Agent findings feed BACK into the AI-DLC workflow:
+- Design review findings → revise spec before coding
+- Code review findings → fix code before merge
+- Pen test findings → adjust requirements and re-implement
+
+This feedback loop is tracked by the `FindingSurvivalRate` metric — the percentage of design-phase findings that survive to later phases. Lower = teams catching issues earlier.
+
+**When a finding arrives:**
+1. Check severity — CRITICAL/HIGH findings block the eval gate automatically (SECURITY-09)
+2. Review remediation guidance from Security Agent
+3. Apply fix in the current AI-DLC phase
+4. Re-run the relevant Security Agent check to verify resolution
+
+---
+
+## Phase 4: Quality Gate (PRISM Eval)
 
 Before requesting merge:
 1. Eval gates run automatically via CI/CD (`prism-eval-gate.yml`)

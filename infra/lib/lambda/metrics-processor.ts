@@ -104,6 +104,30 @@ interface SecurityDetail {
   window_end: string;
 }
 
+interface SecurityAgentFinding {
+  finding_id: string;
+  phase: 'design_review' | 'code_review' | 'pen_test';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+  cvss_score: number | null;
+  title: string;
+  category: string;
+  cwe_id: string | null;
+  exploit_validated: boolean;
+  compliance_mappings: string[];
+  ai_origin: string;
+  spec_ref: string | null;
+  found_at: string;
+  remediated_at: string | null;
+}
+
+interface SecurityRemediationDetail {
+  finding_id: string;
+  severity: string;
+  remediation_time_hours: number;
+  remediated_by_origin: string;
+  finding_phase: string;
+}
+
 interface MetricDetail {
   team_id: string;
   repo: string;
@@ -129,6 +153,8 @@ interface MetricDetail {
   cost?: CostDetail;
   quality?: QualityDetail;
   security?: SecurityDetail;
+  security_agent_finding?: SecurityAgentFinding;
+  security_remediation?: SecurityRemediationDetail;
 }
 
 interface EventBridgeEvent {
@@ -236,6 +262,14 @@ async function writeEventToDynamo(
   // Store eval rubric as a top-level attribute for per-rubric queries
   if (detail.eval?.rubric) {
     item.eval_rubric = { S: detail.eval.rubric };
+  }
+
+  // Store finding_id for Security Agent finding queries
+  if (detail.security_agent_finding?.finding_id) {
+    item.finding_id = { S: detail.security_agent_finding.finding_id };
+  }
+  if (detail.security_remediation?.finding_id) {
+    item.finding_id = { S: detail.security_remediation.finding_id };
   }
 
   await dynamoClient.send(
@@ -651,6 +685,88 @@ async function publishCloudWatchMetrics(
       Value: 1,
       Unit: StandardUnit.Count,
       Dimensions: sharedDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+  }
+
+  // AWS Security Agent finding metrics
+  if (detail.security_agent_finding) {
+    const finding = detail.security_agent_finding;
+    const phaseDimensions = [
+      ...sharedDimensions,
+      { Name: 'Phase', Value: finding.phase },
+      { Name: 'Severity', Value: finding.severity },
+    ];
+    metricData.push({
+      MetricName: 'SecurityFindingCount',
+      Value: 1,
+      Unit: StandardUnit.Count,
+      Dimensions: phaseDimensions,
+      Timestamp: new Date(detail.timestamp),
+    });
+    if (finding.severity === 'CRITICAL' || finding.severity === 'HIGH') {
+      metricData.push({
+        MetricName: 'SecurityCriticalFindingCount',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    if (finding.ai_origin) {
+      metricData.push({
+        MetricName: 'SecurityFindingByOrigin',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: [
+          ...sharedDimensions,
+          { Name: 'AIOrigin', Value: finding.ai_origin },
+        ],
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    if (finding.exploit_validated) {
+      metricData.push({
+        MetricName: 'PenTestExploitCount',
+        Value: 1,
+        Unit: StandardUnit.Count,
+        Dimensions: sharedDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    if (finding.cvss_score != null) {
+      metricData.push({
+        MetricName: 'SecurityFindingCVSS',
+        Value: finding.cvss_score,
+        Unit: StandardUnit.None,
+        Dimensions: phaseDimensions,
+        Timestamp: new Date(detail.timestamp),
+      });
+    }
+    metricData.push({
+      MetricName: 'SecurityScanCount',
+      Value: 1,
+      Unit: StandardUnit.Count,
+      Dimensions: [
+        ...sharedDimensions,
+        { Name: 'Phase', Value: finding.phase },
+      ],
+      Timestamp: new Date(detail.timestamp),
+    });
+  }
+
+  // Security remediation metrics
+  if (detail.security_remediation) {
+    const remediation = detail.security_remediation;
+    metricData.push({
+      MetricName: 'SecurityRemediationTimeHours',
+      Value: remediation.remediation_time_hours,
+      Unit: StandardUnit.Count,
+      Dimensions: [
+        ...sharedDimensions,
+        { Name: 'Severity', Value: remediation.severity },
+        { Name: 'AIOrigin', Value: remediation.remediated_by_origin },
+      ],
       Timestamp: new Date(detail.timestamp),
     });
   }

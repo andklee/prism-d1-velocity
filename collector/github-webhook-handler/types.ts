@@ -131,6 +131,10 @@ export type PrismDetailType =
   | 'prism.d1.token'
   | 'prism.d1.cost'
   | 'prism.d1.security'
+  | 'prism.d1.security.design_review'
+  | 'prism.d1.security.code_review'
+  | 'prism.d1.security.pen_test'
+  | 'prism.d1.security.remediation'
   | 'prism.d1.quality';
 
 // --- Guardrail trigger detail ---
@@ -154,6 +158,38 @@ export interface MCPToolCallDetail {
   risk_level: string;
   duration_ms: number;
   result_status: 'success' | 'error' | 'denied';
+}
+
+// --- AWS Security Agent finding detail ---
+export interface SecurityAgentFinding {
+  finding_id: string;
+  phase: 'design_review' | 'code_review' | 'pen_test';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+  cvss_score: number | null;
+  title: string;
+  description: string;
+  category: string;
+  cwe_id: string | null;
+  exploit_validated: boolean;
+  remediation_guidance: string;
+  compliance_mappings: string[];
+  ai_origin: 'ai-generated' | 'ai-assisted' | 'human' | 'unknown';
+  pr_number: number | null;
+  commit_sha: string | null;
+  spec_ref: string | null;
+  environment: string;
+  found_at: string;
+  remediated_at: string | null;
+}
+
+// --- Security remediation detail ---
+export interface SecurityRemediationDetail {
+  finding_id: string;
+  severity: string;
+  remediation_time_hours: number;
+  remediated_by_origin: string;
+  fix_pr_number: number | null;
+  finding_phase: string;
 }
 
 // --- PR review event (for AI acceptance rate tracking) ---

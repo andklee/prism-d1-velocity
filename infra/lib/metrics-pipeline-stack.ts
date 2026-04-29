@@ -64,6 +64,13 @@ export class MetricsPipelineStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    this.eventsTable.addGlobalSecondaryIndex({
+      indexName: 'by-finding-id',
+      partitionKey: { name: 'finding_id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // -------------------------------------------------------
     // DynamoDB metadata table
     // -------------------------------------------------------
@@ -160,6 +167,10 @@ export class MetricsPipelineStack extends cdk.Stack {
       'prism.d1.token',
       'prism.d1.cost',
       'prism.d1.security',
+      'prism.d1.security.design_review',
+      'prism.d1.security.code_review',
+      'prism.d1.security.pen_test',
+      'prism.d1.security.remediation',
       'prism.d1.quality',
     ];
 
@@ -511,6 +522,171 @@ export class MetricsPipelineStack extends cdk.Stack {
       },
       targets: [new targets.LambdaFunction(specToCodeCalc)],
       description: 'Triggers spec-to-code calculation on merged PR events',
+    });
+
+    // -------------------------------------------------------
+    // AWS Security Agent Integration
+    // -------------------------------------------------------
+    const securityAgentProcessor = new lambda.Function(this, 'SecurityAgentProcessor', {
+      functionName: 'prism-d1-security-agent-processor',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'security-agent-processor.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
+        bundling: {
+          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          command: [
+            'bash', '-c',
+            [
+              'npm init -y > /dev/null 2>&1',
+              'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
+              'npx esbuild security-agent-processor.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-agent-processor.js --external:@aws-sdk/*',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string): boolean {
+              try {
+                const { execSync } = require('child_process');
+                execSync(
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-agent-processor.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-agent-processor.js')} --external:@aws-sdk/*`,
+                  { stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 256,
+      environment: {
+        EVENTS_TABLE: this.eventsTable.tableName,
+        METADATA_TABLE: this.metadataTable.tableName,
+        EVENT_BUS_NAME: this.eventBus.eventBusName,
+      },
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      description: 'Normalizes AWS Security Agent findings and emits to PRISM pipeline',
+    });
+
+    this.eventsTable.grantReadData(securityAgentProcessor);
+    this.metadataTable.grantReadData(securityAgentProcessor);
+    this.eventBus.grantPutEventsTo(securityAgentProcessor);
+
+    // Security Remediation Tracker
+    const securityRemediationTracker = new lambda.Function(this, 'SecurityRemediationTracker', {
+      functionName: 'prism-d1-security-remediation-tracker',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'security-remediation-tracker.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
+        bundling: {
+          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          command: [
+            'bash', '-c',
+            [
+              'npm init -y > /dev/null 2>&1',
+              'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
+              'npx esbuild security-remediation-tracker.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-remediation-tracker.js --external:@aws-sdk/*',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string): boolean {
+              try {
+                const { execSync } = require('child_process');
+                execSync(
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-remediation-tracker.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-remediation-tracker.js')} --external:@aws-sdk/*`,
+                  { stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        EVENTS_TABLE: this.eventsTable.tableName,
+        EVENT_BUS_NAME: this.eventBus.eventBusName,
+      },
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      description: 'Tracks Security Agent finding remediation via merged PRs',
+    });
+
+    this.eventsTable.grantReadData(securityRemediationTracker);
+    this.eventBus.grantPutEventsTo(securityRemediationTracker);
+
+    // Trigger remediation tracker on PR merge events
+    new events.Rule(this, 'PrToRemediationTrackerRule', {
+      ruleName: 'prism-d1-pr-to-remediation-tracker',
+      eventBus: this.eventBus,
+      eventPattern: {
+        source: ['prism.d1.velocity'],
+        detailType: ['prism.d1.pr'],
+      },
+      targets: [new targets.LambdaFunction(securityRemediationTracker)],
+      description: 'Triggers security remediation tracking on merged PR events',
+    });
+
+    // Security Response Automator
+    const securityResponseAutomator = new lambda.Function(this, 'SecurityResponseAutomator', {
+      functionName: 'prism-d1-security-response-automator',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'security-response-automator.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
+        bundling: {
+          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          command: [
+            'bash', '-c',
+            [
+              'npm init -y > /dev/null 2>&1',
+              'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
+              'npx esbuild security-response-automator.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-response-automator.js --external:@aws-sdk/*',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string): boolean {
+              try {
+                const { execSync } = require('child_process');
+                execSync(
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-response-automator.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-response-automator.js')} --external:@aws-sdk/*`,
+                  { stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        EVENTS_TABLE: this.eventsTable.tableName,
+        EVENT_BUS_NAME: this.eventBus.eventBusName,
+        GUARDRAIL_ID: this.guardrail.guardrailId,
+        GUARDRAIL_VERSION: this.guardrail.guardrailVersion,
+      },
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      description: 'Auto-responds to critical Security Agent findings (guardrail tightening, alerts)',
+    });
+
+    this.eventsTable.grantWriteData(securityResponseAutomator);
+    this.eventBus.grantPutEventsTo(securityResponseAutomator);
+
+    // Trigger automator on critical security findings
+    new events.Rule(this, 'SecurityFindingToAutomatorRule', {
+      ruleName: 'prism-d1-security-finding-to-automator',
+      eventBus: this.eventBus,
+      eventPattern: {
+        source: ['prism.d1.velocity'],
+        detailType: ['prism.d1.security.code_review', 'prism.d1.security.pen_test'],
+      },
+      targets: [new targets.LambdaFunction(securityResponseAutomator)],
+      description: 'Triggers automated response on code review and pen test findings',
     });
 
     // -------------------------------------------------------

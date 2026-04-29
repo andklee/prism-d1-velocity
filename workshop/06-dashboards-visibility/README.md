@@ -109,6 +109,7 @@ The Team Velocity and Executive Readout dashboards include these sections:
 | MCP Governance | Tool call volume, auth denied rate | "What are agents accessing? Any unauthorized attempts?" |
 | Cost Intelligence | Token usage (input/output), cost per commit, Bedrock cost, token efficiency | "What does AI cost us per commit? Are we efficient?" |
 | AI Attribution | AI vs human defect rate, spec-to-code hours | "Is AI code more or less reliable than human code?" |
+| Security Agent Findings | Critical/High count, finding trend by severity, remediation time, exploits, AI vs human findings, phase breakdown | "What vulnerabilities has Security Agent found? Are we fixing them fast enough?" |
 
 **Executive Readout Dashboard** (for CTOs/VPEs, 7-day/30-day):
 
@@ -120,7 +121,15 @@ The Team Velocity and Executive Readout dashboards include these sections:
 | Security & Compliance | Guardrail blocks, trigger trend, MCP denied, exfiltration alerts | "Are we safe? Any compliance concerns?" |
 | Cost Intelligence | Weekly Bedrock cost, cost per deploy, AI vs human defect rate | "What's the ROI? Is AI code worth it?" |
 
-**Alarms (8 total):**
+**CISO Compliance Dashboard** (for CISOs/security leaders, 30-day):
+
+| Section | Key Widgets | What It Answers |
+|---|---|---|
+| Security Posture | Open critical findings, validated exploits, avg remediation time, scan volume | "What's our overall security posture?" |
+| AI Code Risk Profile | Findings by code origin, remediation time by origin | "Is AI-generated code introducing more security issues?" |
+| Shift-Left Effectiveness | Findings by phase (design/code/pen test), guardrail + exfiltration trends | "Are teams catching issues earlier in the lifecycle?" |
+
+**Alarms (12 total):**
 
 | Alarm | Threshold | What It Catches |
 |---|---|---|
@@ -132,6 +141,10 @@ The Team Velocity and Executive Readout dashboards include these sections:
 | Bedrock Daily Cost High | > $100/day | Budget overrun |
 | Token Efficiency Low | > 500 tokens/line for 6h | Inefficient prompting |
 | Exfiltration Alert | >= 1 alert | Anomalous data access |
+| Security Critical Finding | >= 1/hr | Critical/High Security Agent finding |
+| Pen Test Exploit Detected | >= 1 | Validated exploit from pen testing |
+| Security Remediation SLA | avg > 72h/24h | Teams not fixing findings fast enough |
+| Security Finding Rate High | > 50/6h | Systemic security quality issue |
 
 > **Instructor Note:** Each widget has a circled "i" info tooltip that explains the metric on hover. Point this out — it's useful for developers exploring the dashboard after the workshop.
 

@@ -163,12 +163,23 @@ Use the `--spec` flag for local testing:
 | `code-quality.json` | 7 criteria (correctness, readability, maintainability, error handling, testing, performance, docs) | 0.82 |
 | `api-response-quality.json` | 6 criteria (contract, status codes, validation, pagination, errors, idempotency) | 0.82 |
 | `agent-quality.json` | 5 criteria (reasoning, tool selection, error recovery, efficiency, output quality) | 0.82 |
-| `security-compliance.json` | 9 criteria (auth, injection, secrets, data protection, IAM, errors, HTTP headers, logging, dependencies) | 0.82 |
+| `security-compliance.json` | 10 criteria (auth, injection, secrets, data protection, IAM, errors, HTTP headers, logging, dependencies, **Security Agent findings**) | 0.82 |
 | `spec-compliance.json` | 4 criteria (requirement coverage, interface adherence, edge cases, intent fidelity) | 0.82 |
 
 **Per-Rubric Metrics:**
 
 Every eval emits a `prism.d1.eval` event with the rubric name, enabling the Team Velocity dashboard to show pass rates broken down by rubric type. This helps teams see which categories of AI code need the most improvement.
+
+**AWS Security Agent Integration (SECURITY-09):**
+
+The `security-compliance` rubric includes a 10th criterion: `security_agent_findings`. When AWS Security Agent is configured, the eval gate queries for open Critical/High findings on the repo. Open CRITICAL findings force the criterion score to 1/5, typically failing the 0.82 pass threshold and blocking merge.
+
+Security Agent operates across the AI-DLC lifecycle:
+- **Design Review** — analyzes specs for architectural security risks before coding begins
+- **Code Review** — scans PRs against organizational security policies
+- **Pen Testing** — validates deployed applications against OWASP Top 10
+
+Findings feed back into the AI-DLC workflow: teams revise specs, design, and code based on findings. The `FindingSurvivalRate` metric tracks whether teams catch issues earlier over time.
 
 ---
 

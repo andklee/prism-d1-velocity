@@ -834,6 +834,164 @@ export class DashboardStack extends cdk.Stack {
     );
 
     // =======================================================
+    // Team Dashboard: Security Agent Findings
+    // =======================================================
+    teamDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Security Agent Findings',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.SingleValueWidget({
+        title: 'Open Critical/High Findings',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityCriticalFindingCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Critical + High',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Finding Trend by Severity',
+        left: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) =>
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingCount',
+            dimensionsMap: { Severity: severity },
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: severity,
+          }),
+        ),
+        width: 8,
+        height: 4,
+        leftYAxis: { min: 0, label: 'Findings' },
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Avg Remediation (hrs)',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'Hours',
+          }),
+        ],
+        width: 4,
+        height: 4,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Validated Exploits (7d)',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PenTestExploitCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Exploits',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Findings: AI vs Human Code',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingByOrigin',
+            dimensionsMap: { AIOrigin: 'ai-assisted' },
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'AI Code',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingByOrigin',
+            dimensionsMap: { AIOrigin: 'human' },
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Human Code',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Findings' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Remediation Time: AI vs Human',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            dimensionsMap: { AIOrigin: 'ai-assisted' },
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'AI Code Fix Time (hrs)',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            dimensionsMap: { AIOrigin: 'human' },
+            statistic: 'Average',
+            period: cdk.Duration.days(1),
+            label: 'Human Code Fix Time (hrs)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Hours' },
+      }),
+    );
+
+    teamDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Findings by Phase',
+        left: ['design_review', 'code_review', 'pen_test'].map((phase) =>
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingCount',
+            dimensionsMap: { Phase: phase },
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: phase.replace('_', ' '),
+          }),
+        ),
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Findings' },
+        view: cloudwatch.GraphWidgetView.BAR,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Security Scan Volume',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityScanCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(1),
+            label: 'Scans / Day',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Scans' },
+      }),
+    );
+
+    // =======================================================
     // Executive Dashboard: Security & Compliance section
     // =======================================================
     execDashboard.addWidgets(
@@ -970,7 +1128,267 @@ export class DashboardStack extends cdk.Stack {
     );
 
     // =======================================================
-    // New Alarms (Pillars 2-7)
+    // Dashboard 3: CISO Compliance
+    // =======================================================
+    const cisoDashboard = new cloudwatch.Dashboard(this, 'CISOComplianceDashboard', {
+      dashboardName: 'PRISM-D1-CISO-Compliance',
+      defaultInterval: cdk.Duration.days(30),
+    });
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '# PRISM D1 - CISO Compliance Dashboard\nSecurity posture, remediation SLAs, and AI code risk profile across all teams.',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.SingleValueWidget({
+        title: 'Open Critical Findings',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityCriticalFindingCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(30),
+            label: 'Critical + High (30d)',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Validated Exploits',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'PenTestExploitCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(30),
+            label: 'Exploits (30d)',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Avg Remediation Time',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            statistic: 'Average',
+            period: cdk.Duration.days(30),
+            label: 'Hours (30d avg)',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+      new cloudwatch.SingleValueWidget({
+        title: 'Security Scans Run',
+        metrics: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityScanCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(30),
+            label: 'Scans (30d)',
+          }),
+        ],
+        width: 6,
+        height: 4,
+      }),
+    );
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### AI Code Risk Profile',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Security Findings: AI vs Human Code',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingByOrigin',
+            dimensionsMap: { AIOrigin: 'ai-assisted' },
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'AI Code Findings',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingByOrigin',
+            dimensionsMap: { AIOrigin: 'human' },
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Human Code Findings',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Findings' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Remediation Time by Code Origin',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            dimensionsMap: { AIOrigin: 'ai-assisted' },
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'AI Code (hrs)',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityRemediationTimeHours',
+            dimensionsMap: { AIOrigin: 'human' },
+            statistic: 'Average',
+            period: cdk.Duration.days(7),
+            label: 'Human Code (hrs)',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Hours' },
+      }),
+    );
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.TextWidget({
+        markdown: '### Shift-Left Effectiveness',
+        width: 24,
+        height: 1,
+      }),
+    );
+
+    cisoDashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Findings by Phase (Monthly Trend)',
+        left: ['design_review', 'code_review', 'pen_test'].map((phase) =>
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'SecurityFindingCount',
+            dimensionsMap: { Phase: phase },
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: phase.replace('_', ' '),
+          }),
+        ),
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Findings' },
+        view: cloudwatch.GraphWidgetView.BAR,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Guardrail + Exfiltration Trends',
+        left: [
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'GuardrailBlockCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Guardrail Blocks',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'ExfiltrationAlertCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'Exfiltration Alerts',
+          }),
+          new cloudwatch.Metric({
+            namespace: METRIC_NAMESPACE,
+            metricName: 'MCPAuthDeniedCount',
+            statistic: 'Sum',
+            period: cdk.Duration.days(7),
+            label: 'MCP Auth Denied',
+          }),
+        ],
+        width: 12,
+        height: 6,
+        leftYAxis: { min: 0, label: 'Count' },
+      }),
+    );
+
+    new cdk.CfnOutput(this, 'CISODashboardUrl', {
+      value: `https://${this.region}.console.aws.amazon.com/cloudwatch/home?region=${this.region}#dashboards:name=PRISM-D1-CISO-Compliance`,
+      description: 'CISO Compliance Dashboard URL',
+    });
+
+    // =======================================================
+    // Security Agent Alarms
+    // =======================================================
+
+    new cloudwatch.Alarm(this, 'SecurityCriticalFindingAlarm', {
+      alarmName: 'PRISM-D1-SecurityCriticalFinding',
+      alarmDescription: 'Critical or High security finding detected by AWS Security Agent.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'SecurityCriticalFindingCount',
+        statistic: 'Sum',
+        period: cdk.Duration.hours(1),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    new cloudwatch.Alarm(this, 'PenTestExploitAlarm', {
+      alarmName: 'PRISM-D1-PenTestExploitDetected',
+      alarmDescription: 'Validated exploit detected by AWS Security Agent pen testing.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'PenTestExploitCount',
+        statistic: 'Sum',
+        period: cdk.Duration.hours(1),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    new cloudwatch.Alarm(this, 'SecurityRemediationSLAAlarm', {
+      alarmName: 'PRISM-D1-SecurityRemediationSLA',
+      alarmDescription: 'Average security finding remediation time exceeds 72 hours.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'SecurityRemediationTimeHours',
+        statistic: 'Average',
+        period: cdk.Duration.days(1),
+      }),
+      threshold: 72,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    new cloudwatch.Alarm(this, 'SecurityFindingRateHighAlarm', {
+      alarmName: 'PRISM-D1-SecurityFindingRate-High',
+      alarmDescription: 'Security finding count exceeds 50 in 6 hours — systemic quality issue.',
+      metric: new cloudwatch.Metric({
+        namespace: METRIC_NAMESPACE,
+        metricName: 'SecurityFindingCount',
+        statistic: 'Sum',
+        period: cdk.Duration.hours(6),
+      }),
+      threshold: 50,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+
+    // =======================================================
+    // Existing Alarms
     // =======================================================
 
     // Alarm: Guardrail block rate exceeding threshold
