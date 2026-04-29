@@ -410,7 +410,7 @@ async function handlePostSecurityFindings(event: ApiGatewayEvent): Promise<ApiGa
 
   // Emit in batches of 10
   for (let i = 0; i < entries.length; i += 10) {
-    await ebClient.send(new PutEventsCommand({ Entries: entries.slice(i, i + 10) }));
+    await eventBridgeClient.send(new PutEventsCommand({ Entries: entries.slice(i, i + 10) }));
   }
 
   return respond(200, { message: 'OK', findingsProcessed: entries.length });

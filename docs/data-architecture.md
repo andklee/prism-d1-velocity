@@ -600,7 +600,7 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | API handler Lambda | `infra/lib/lambda/api-handler.ts` | REST API for ingestion + queries |
 | Metrics pipeline stack | `infra/lib/metrics-pipeline-stack.ts` | EventBridge bus + DynamoDB tables + Lambda + constructs |
 | API stack | `infra/lib/api-stack.ts` | API Gateway + Lambda + usage plans |
-| Dashboard stack | `infra/lib/dashboard-stack.ts` | CloudWatch dashboards (2) + alarms (8) |
+| Dashboard stack | `infra/lib/dashboard-stack.ts` | CloudWatch dashboards (3) + alarms (12) |
 
 ### Eval Gates
 

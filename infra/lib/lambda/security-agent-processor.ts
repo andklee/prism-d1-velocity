@@ -1,7 +1,7 @@
 import {
   DynamoDBClient,
   QueryCommand,
-  GetItemCommand,
+  ScanCommand,
 } from '@aws-sdk/client-dynamodb';
 import {
   EventBridgeClient,
@@ -152,18 +152,25 @@ function normalizePhase(type: string): string {
 
 async function lookupTeamId(repo: string): Promise<string> {
   try {
-    // Query metadata table for any team that has this repo
+    // The metadata table has PK=team_id, SK=repo.
+    // We can't query by repo directly without a GSI, so we scan
+    // with a filter. This is acceptable because the metadata table
+    // has one row per team+repo (small table).
     const result = await dynamoClient.send(
-      new QueryCommand({
+      new ScanCommand({
         TableName: METADATA_TABLE,
-        IndexName: undefined, // Scan PK
-        KeyConditionExpression: 'begins_with(team_id, :prefix)',
-        // Since we can't efficiently query by repo on the metadata table,
-        // try a direct get with common team patterns
+        FilterExpression: 'repo = :repo',
+        ExpressionAttributeValues: {
+          ':repo': { S: repo },
+        },
         Limit: 1,
       }),
     );
-    // Fallback: extract from repo name pattern
+
+    if (result.Items && result.Items.length > 0) {
+      return result.Items[0].team_id?.S ?? 'unknown';
+    }
+
     return 'unknown';
   } catch {
     return 'unknown';

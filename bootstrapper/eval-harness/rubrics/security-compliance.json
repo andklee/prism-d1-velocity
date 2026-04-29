@@ -5,7 +5,7 @@
   "criteria": [
     {
       "name": "authentication_authorization",
-      "weight": 0.18,
+      "weight": 0.16,
       "description": "Access control is properly implemented and enforced.",
       "references": ["SECURITY-01"],
       "scoring": {
@@ -18,7 +18,7 @@
     },
     {
       "name": "injection_prevention",
-      "weight": 0.18,
+      "weight": 0.16,
       "description": "Code is protected against injection attacks (SQL, NoSQL, command, XSS). All API parameters validated for type, length, and format.",
       "references": ["SECURITY-05"],
       "scoring": {
@@ -57,7 +57,7 @@
     },
     {
       "name": "least_privilege",
-      "weight": 0.12,
+      "weight": 0.10,
       "description": "IAM roles and permissions follow least-privilege principle with specific resource ARNs and actions.",
       "references": ["SECURITY-06"],
       "scoring": {
@@ -122,7 +122,7 @@
     },
     {
       "name": "security_agent_findings",
-      "weight": 0.08,
+      "weight": 0.09,
       "description": "No unresolved Critical/High findings from AWS Security Agent on this codebase.",
       "references": ["SECURITY-09"],
       "scoring": {

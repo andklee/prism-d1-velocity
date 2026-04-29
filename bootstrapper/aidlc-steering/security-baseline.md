@@ -99,15 +99,15 @@ These rules map to the PRISM `security-compliance.json` eval rubric:
 
 | Security Rule | Rubric Criterion | Weight |
 |---|---|---|
-| SECURITY-01 (Encryption) | `data_protection` | 0.15 |
-| SECURITY-02, 03 (Logging) | `structured_logging` | 0.04 |
-| SECURITY-04, 05 (Headers, Input) | `injection_prevention` | 0.18 |
-| SECURITY-06 (IAM) | `least_privilege` | 0.12 |
-| SECURITY-07 (Errors) | `error_information_leakage` | 0.07 |
-| SECURITY-01 (Auth) | `authentication_authorization` | 0.18 |
+| SECURITY-01 (Auth) | `authentication_authorization` | 0.16 |
+| SECURITY-05 (Input) | `injection_prevention` | 0.16 |
 | SECURITY-03 (Secrets) | `secret_management` | 0.15 |
+| SECURITY-01 (Encryption) | `data_protection` | 0.15 |
+| SECURITY-06 (IAM) | `least_privilege` | 0.10 |
+| SECURITY-09 (Security Agent) | `security_agent_findings` | 0.09 |
+| SECURITY-07 (Errors) | `error_information_leakage` | 0.07 |
+| SECURITY-02, 03 (Logging) | `structured_logging` | 0.04 |
 | SECURITY-04 (Headers) | `http_security_headers` | 0.04 |
 | SECURITY-08 (Dependencies) | `dependency_security` | 0.04 |
-| SECURITY-09 (Security Agent) | `security_agent_findings` | 0.08 |
 
 The eval gate runs Bedrock against this rubric on every PR. Score below 0.82 blocks merge.
