@@ -8,6 +8,8 @@
 #   - Repository variable PRISM_API_URL with the PRISM D1 API Gateway URL
 #   - Repository variable PRISM_TEAM_ID with your team identifier
 #   - Repository variable PRISM_AWS_ROLE_ARN with the OIDC role ARN
+#   - Repository variable PRISM_AGENT_SPACE_ID with the Security Agent space ID
+#   - Repository variable PRISM_PENTEST_ID with the pen test config ID (for pen_test scans)
 #   - AWS Security Agent enabled in your account
 
 name: PRISM Security Agent Scan
@@ -20,7 +22,7 @@ on:
       - 'docs/design/**'
     branches: [main]
 
-  # Code review on PRs
+  # Code review on PRs (handled by Security Agent GitHub integration — this step collects findings)
   pull_request:
     types: [opened, synchronize]
     branches: [main]
@@ -46,6 +48,10 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  AWS_REGION: us-west-2
+  AGENT_SPACE_ID: ${{ vars.PRISM_AGENT_SPACE_ID }}
+
 jobs:
   security-scan:
     runs-on: ubuntu-latest
@@ -59,16 +65,21 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.PRISM_AWS_ROLE_ARN }}
-          aws-region: us-west-2
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
 
       - name: Determine scan type
         id: scan-type
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Check if specs changed
             CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -E '^(specs/|docs/design/)' || true)
             if [[ -n "${CHANGED}" ]]; then
               echo "type=design_review" >> "$GITHUB_OUTPUT"
+              echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+              echo "${CHANGED}" >> "$GITHUB_OUTPUT"
+              echo "EOF" >> "$GITHUB_OUTPUT"
               echo "Detected spec changes — triggering design review"
             else
               echo "type=none" >> "$GITHUB_OUTPUT"
@@ -87,81 +98,265 @@ jobs:
             echo "type=none" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run Security Agent scan
+      # -------------------------------------------------------
+      # DESIGN REVIEW — upload specs as artifacts for review
+      # -------------------------------------------------------
+      - name: Upload specs for design review
+        if: steps.scan-type.outputs.type == 'design_review'
+        id: design-review
+        run: |
+          echo "=== Uploading specs to Security Agent for design review ==="
+
+          CHANGED_FILES="${{ steps.scan-type.outputs.changed_files }}"
+          ARTIFACT_IDS=""
+
+          while IFS= read -r FILE; do
+            [[ -z "${FILE}" ]] && continue
+            [[ ! -f "${FILE}" ]] && continue
+
+            echo "Uploading: ${FILE}"
+
+            # Determine artifact type from extension
+            EXT="${FILE##*.}"
+            case "${EXT}" in
+              md)  ARTIFACT_TYPE="MD" ;;
+              txt) ARTIFACT_TYPE="TXT" ;;
+              pdf) ARTIFACT_TYPE="PDF" ;;
+              *)   ARTIFACT_TYPE="TXT" ;;
+            esac
+
+            RESULT=$(aws securityagent add-artifact \
+              --agent-space-id "${AGENT_SPACE_ID}" \
+              --artifact-content "fileb://${FILE}" \
+              --artifact-type "${ARTIFACT_TYPE}" \
+              --file-name "$(basename "${FILE}")" \
+              --region "${AWS_REGION}" \
+              --output json 2>&1) || {
+                echo "Warning: Failed to upload ${FILE}: ${RESULT}"
+                continue
+              }
+
+            ARTIFACT_ID=$(echo "${RESULT}" | jq -r '.artifactId // empty')
+            if [[ -n "${ARTIFACT_ID}" ]]; then
+              echo "  Uploaded: ${ARTIFACT_ID}"
+              ARTIFACT_IDS="${ARTIFACT_IDS} ${ARTIFACT_ID}"
+            fi
+          done <<< "${CHANGED_FILES}"
+
+          echo "artifact_ids=${ARTIFACT_IDS}" >> "$GITHUB_OUTPUT"
+          echo "Design review artifacts uploaded: $(echo ${ARTIFACT_IDS} | wc -w | tr -d ' ')"
+
+      # -------------------------------------------------------
+      # PEN TEST — start a pen test job
+      # -------------------------------------------------------
+      - name: Start pen test
+        if: steps.scan-type.outputs.type == 'pen_test'
+        id: pen-test
+        run: |
+          PENTEST_ID="${{ vars.PRISM_PENTEST_ID }}"
+          if [[ -z "${PENTEST_ID}" ]]; then
+            echo "Warning: PRISM_PENTEST_ID not set. Skipping pen test."
+            echo "job_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "=== Starting pen test job ==="
+          RESULT=$(aws securityagent start-pentest-job \
+            --agent-space-id "${AGENT_SPACE_ID}" \
+            --pentest-id "${PENTEST_ID}" \
+            --region "${AWS_REGION}" \
+            --output json 2>&1) || {
+              echo "Warning: Failed to start pen test: ${RESULT}"
+              echo "job_id=" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+
+          JOB_ID=$(echo "${RESULT}" | jq -r '.pentestJobId // empty')
+          echo "Pen test job started: ${JOB_ID}"
+          echo "job_id=${JOB_ID}" >> "$GITHUB_OUTPUT"
+
+      # -------------------------------------------------------
+      # POLL FOR FINDINGS — wait for scan completion, collect results
+      # -------------------------------------------------------
+      - name: Collect findings
         if: steps.scan-type.outputs.type != 'none'
-        id: scan
+        id: findings
         run: |
           SCAN_TYPE="${{ steps.scan-type.outputs.type }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           REPO="${{ github.repository }}"
+          TEAM_ID="${{ vars.PRISM_TEAM_ID }}"
 
-          echo "Running ${SCAN_TYPE} scan on ${REPO}..."
+          # For pen tests, wait for job completion and get findings
+          if [[ "${SCAN_TYPE}" == "pen_test" ]]; then
+            JOB_ID="${{ steps.pen-test.outputs.job_id }}"
+            if [[ -z "${JOB_ID}" ]]; then
+              echo "No pen test job to poll"
+              echo "count=0" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
 
-          # Note: AWS Security Agent API calls would go here.
-          # Since Security Agent is in preview, this workflow forwards
-          # findings via the PRISM API endpoint.
-          #
-          # When Security Agent GA launches, replace this section with:
-          #   aws securityagent start-assessment \
-          #     --assessment-type "${SCAN_TYPE}" \
-          #     --target-repository "${REPO}" \
-          #     --webhook-url "${{ vars.PRISM_API_URL }}/security-findings"
-          #
-          # For now, this step is a placeholder that can be triggered
-          # manually or via the Security Agent console.
+            echo "Waiting for pen test job ${JOB_ID} to complete..."
+            for i in $(seq 1 60); do
+              STATUS=$(aws securityagent batch-get-pentest-jobs \
+                --pentest-job-ids "${JOB_ID}" \
+                --agent-space-id "${AGENT_SPACE_ID}" \
+                --region "${AWS_REGION}" \
+                --query 'pentestJobs[0].status' \
+                --output text 2>/dev/null || echo "UNKNOWN")
 
-          echo "scan_type=${SCAN_TYPE}" >> "$GITHUB_OUTPUT"
-          echo "timestamp=${TIMESTAMP}" >> "$GITHUB_OUTPUT"
-          echo "Security Agent scan initiated (${SCAN_TYPE})"
+              if [[ "${STATUS}" == "COMPLETED" || "${STATUS}" == "FAILED" ]]; then
+                echo "Pen test job ${STATUS}"
+                break
+              fi
+              echo "  Status: ${STATUS} (attempt ${i}/60, waiting 30s...)"
+              sleep 30
+            done
 
+            # Get findings
+            FINDINGS_JSON=$(aws securityagent list-findings \
+              --pentest-job-id "${JOB_ID}" \
+              --agent-space-id "${AGENT_SPACE_ID}" \
+              --region "${AWS_REGION}" \
+              --output json 2>/dev/null || echo '{"findingsSummaries":[]}')
+
+          else
+            # For design/code review, list recent findings from the agent space
+            # The GitHub integration or artifact upload triggers the review automatically
+            echo "Waiting 60s for Security Agent to process..."
+            sleep 60
+
+            # List all recent pentest jobs to find findings
+            JOBS=$(aws securityagent list-pentest-jobs-for-pentest \
+              --pentest-id "$(aws securityagent list-pentests \
+                --agent-space-id "${AGENT_SPACE_ID}" \
+                --region "${AWS_REGION}" \
+                --query 'pentestSummaries[0].pentestId' \
+                --output text 2>/dev/null || echo 'none')" \
+              --agent-space-id "${AGENT_SPACE_ID}" \
+              --region "${AWS_REGION}" \
+              --query 'pentestJobSummaries[0].pentestJobId' \
+              --output text 2>/dev/null || echo "")
+
+            if [[ -n "${JOBS}" && "${JOBS}" != "None" ]]; then
+              FINDINGS_JSON=$(aws securityagent list-findings \
+                --pentest-job-id "${JOBS}" \
+                --agent-space-id "${AGENT_SPACE_ID}" \
+                --region "${AWS_REGION}" \
+                --output json 2>/dev/null || echo '{"findingsSummaries":[]}')
+            else
+              FINDINGS_JSON='{"findingsSummaries":[]}'
+            fi
+          fi
+
+          # Count findings
+          FINDING_COUNT=$(echo "${FINDINGS_JSON}" | jq '.findingsSummaries | length')
+          echo "Found ${FINDING_COUNT} findings"
+          echo "count=${FINDING_COUNT}" >> "$GITHUB_OUTPUT"
+
+          # Save findings for forwarding
+          echo "${FINDINGS_JSON}" > /tmp/security-findings.json
+
+      # -------------------------------------------------------
+      # FORWARD FINDINGS TO PRISM
+      # -------------------------------------------------------
       - name: Forward findings to PRISM
         if: steps.scan-type.outputs.type != 'none'
         run: |
-          # This step polls for scan results and forwards them to PRISM.
-          # Replace with actual Security Agent API polling when available.
-          #
-          # Example of how findings would be forwarded:
-          #
-          # FINDINGS=$(aws securityagent get-assessment-findings \
-          #   --assessment-id "${ASSESSMENT_ID}" \
-          #   --output json)
-          #
-          # curl -X POST "${{ vars.PRISM_API_URL }}/security-findings" \
-          #   -H "x-api-key: ${{ secrets.PRISM_API_KEY }}" \
-          #   -H "Content-Type: application/json" \
-          #   -d "${FINDINGS}"
+          SCAN_TYPE="${{ steps.scan-type.outputs.type }}"
+          FINDING_COUNT="${{ steps.findings.outputs.count }}"
+          REPO="${{ github.repository }}"
+          TEAM_ID="${{ vars.PRISM_TEAM_ID }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          echo "Findings would be forwarded to PRISM API at ${{ vars.PRISM_API_URL }}/security-findings"
+          if [[ "${FINDING_COUNT}" -eq 0 ]]; then
+            echo "No findings to forward"
+            exit 0
+          fi
 
-      - name: Emit scan event to PRISM
+          echo "Forwarding ${FINDING_COUNT} findings to PRISM..."
+
+          # Transform Security Agent findings to PRISM schema
+          PRISM_FINDINGS=$(cat /tmp/security-findings.json | jq --arg scan_type "${SCAN_TYPE}" \
+            --arg repo "${REPO}" --arg team_id "${TEAM_ID}" --arg timestamp "${TIMESTAMP}" \
+            '{
+              "findings": [.findingsSummaries[] | {
+                "finding_id": .findingId,
+                "type": $scan_type,
+                "severity": (.riskLevel // "MEDIUM"),
+                "cvss": (.cvssScore // null),
+                "title": (.name // "Security finding"),
+                "description": (.description // ""),
+                "category": (.riskType // "General"),
+                "cwe_id": (.cweId // null),
+                "exploit_validated": (if .confidence == "HIGH" then true else false end),
+                "remediation": (.remediation // "Review and fix"),
+                "compliance": (.complianceMappings // []),
+                "repository": $repo,
+                "team_id": $team_id,
+                "found_at": $timestamp
+              }]
+            }')
+
+          # Send to PRISM API
+          HTTP_STATUS=$(curl -s -o /tmp/prism-response.json -w "%{http_code}" \
+            -X POST "${{ vars.PRISM_API_URL }}/security-findings" \
+            -H "x-api-key: ${{ secrets.PRISM_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "${PRISM_FINDINGS}")
+
+          if [[ "${HTTP_STATUS}" == "200" ]]; then
+            echo "Findings forwarded successfully"
+            cat /tmp/prism-response.json | jq '.'
+          else
+            echo "Warning: PRISM API returned ${HTTP_STATUS}"
+            cat /tmp/prism-response.json 2>/dev/null || true
+          fi
+
+      # -------------------------------------------------------
+      # EMIT SCAN EVENT TO EVENTBRIDGE
+      # -------------------------------------------------------
+      - name: Emit scan event
         if: steps.scan-type.outputs.type != 'none'
         run: |
-          SCAN_EVENT=$(jq -n \
+          SCAN_TYPE="${{ steps.scan-type.outputs.type }}"
+          FINDING_COUNT="${{ steps.findings.outputs.count }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          DETAIL=$(jq -n \
             --arg team_id "${{ vars.PRISM_TEAM_ID }}" \
             --arg repo "${{ github.repository }}" \
-            --arg timestamp "${{ steps.scan.outputs.timestamp }}" \
-            --arg scan_type "${{ steps.scan.outputs.scan_type }}" \
+            --arg timestamp "${TIMESTAMP}" \
+            --arg scan_type "${SCAN_TYPE}" \
+            --argjson finding_count "${FINDING_COUNT:-0}" \
             '{
-              "source": "prism.d1.velocity",
-              "detail-type": ("prism.d1.security." + $scan_type),
-              "detail": {
-                "team_id": $team_id,
-                "repo": $repo,
-                "timestamp": $timestamp,
-                "prism_level": 3,
-                "metric": {
-                  "name": "security_scan_initiated",
-                  "value": 1,
-                  "unit": "count"
-                }
+              "team_id": $team_id,
+              "repo": $repo,
+              "timestamp": $timestamp,
+              "prism_level": 3,
+              "metric": {
+                "name": "security_scan",
+                "value": $finding_count,
+                "unit": "count"
+              },
+              "ai_context": {
+                "tool": "security-agent",
+                "model": "aws-security-agent",
+                "origin": "ai-generated"
               }
             }')
 
           aws events put-events \
-            --region us-west-2 \
+            --region "${AWS_REGION}" \
             --entries "[{
               \"Source\": \"prism.d1.velocity\",
-              \"DetailType\": \"prism.d1.security.${{ steps.scan.outputs.scan_type }}\",
+              \"DetailType\": \"prism.d1.security.${SCAN_TYPE}\",
               \"EventBusName\": \"prism-d1-metrics\",
-              \"Detail\": $(echo "${SCAN_EVENT}" | jq -c '.detail' | jq -Rs '.')
+              \"Detail\": $(echo "${DETAIL}" | jq -c '.' | jq -Rs '.')
             }]" || echo "Warning: Failed to emit scan event (non-blocking)"
+
+          echo ""
+          echo "=== Scan Complete ==="
+          echo "Type:     ${SCAN_TYPE}"
+          echo "Findings: ${FINDING_COUNT}"
+          echo "Check:    CloudWatch → PRISM-D1-Team-Velocity → Security Agent Findings"

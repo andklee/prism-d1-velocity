@@ -59,10 +59,23 @@ echo ""
 # Verify AWS Security Agent access
 # ---------------------------------------------------------------------------
 echo "Checking AWS Security Agent access..."
-if aws securityagent list-assessments --region "${AWS_REGION}" --max-results 1 > /dev/null 2>&1; then
+AGENT_SPACES=$(aws securityagent list-agent-spaces --region "${AWS_REGION}" --query 'agentSpaceSummaries[].name' --output text 2>/dev/null || echo "")
+if [[ -n "${AGENT_SPACES}" ]]; then
     echo "  AWS Security Agent: accessible"
+    echo "  Agent Spaces: ${AGENT_SPACES}"
+
+    # Check if our agent space exists
+    SPACE_ID=$(aws securityagent list-agent-spaces --region "${AWS_REGION}" \
+      --query "agentSpaceSummaries[?name=='prism-d1-security'].agentSpaceId" \
+      --output text 2>/dev/null || echo "")
+    if [[ -n "${SPACE_ID}" && "${SPACE_ID}" != "None" ]]; then
+        echo "  PRISM Agent Space ID: ${SPACE_ID}"
+    else
+        echo "  PRISM Agent Space not found — deploy CDK stack first: npx cdk deploy --all"
+    fi
 else
-    echo "  AWS Security Agent: not accessible (may be preview-only or not enabled)"
+    echo "  AWS Security Agent: not accessible or no agent spaces configured"
+    echo "  Deploy the CDK stack first: cd infra && npx cdk deploy --all"
     echo "  The setup will continue — findings can be submitted via the API endpoint."
 fi
 

@@ -114,9 +114,20 @@ Design review analyzes specs and design documents for architectural security ris
 4. Review the findings — architectural risks, missing security requirements
 5. Download the findings report
 
-### Automated trigger (when available)
+### Automated trigger via GitHub Actions
 
-The `prism-security-agent-scan.yml` GitHub Actions workflow is configured to trigger design review when files in `specs/` or `docs/design/` are committed. Currently this emits a scan event to PRISM; when the Security Agent API supports programmatic design review, the workflow will call the API directly.
+The `prism-security-agent-scan.yml` workflow automatically uploads specs to Security Agent when files in `specs/` or `docs/design/` are committed:
+
+```bash
+# What the workflow does:
+aws securityagent add-artifact \
+  --agent-space-id <your-space-id> \
+  --artifact-content fileb://specs/user-auth.md \
+  --artifact-type MD \
+  --file-name user-auth.md
+```
+
+Security Agent reviews the uploaded artifact and generates findings. The workflow then polls for results and forwards them to the PRISM API endpoint.
 
 ---
 
