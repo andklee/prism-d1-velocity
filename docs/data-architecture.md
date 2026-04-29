@@ -113,6 +113,20 @@ The MCP server's audit logger emits `prism.d1.mcp.tool_call` events to EventBrid
 
 Agent invocations emit `prism.d1.agent` events with step counts, tool calls, tokens used, and guardrail triggers. Individual guardrail triggers emit separate `prism.d1.guardrail` events with category, type, and action details.
 
+### 9. AWS Security Agent
+
+AWS Security Agent performs proactive security scanning across three AI-DLC phases:
+
+| Phase | Trigger | What It Scans | Event Type |
+|---|---|---|---|
+| Design Review | Spec/design doc committed | Architecture decisions, data flows, auth design | `prism.d1.security.design_review` |
+| Code Review | PR opened/updated | Source code against org security policies | `prism.d1.security.code_review` |
+| Pen Testing | Deploy to staging | Running application (OWASP Top 10, business logic) | `prism.d1.security.pen_test` |
+
+Findings are ingested via `POST /security-findings` webhook or scheduled polling, enriched with team_id and AI origin, and emitted to EventBridge. The `security-remediation-tracker` Lambda correlates findings with merged PRs to calculate remediation time. The `security-response-automator` Lambda triggers alarms and eval gate penalties on Critical/High findings.
+
+CDK resources provisioned: `CfnAgentSpace` (scope + KMS encryption), `CfnTargetDomain` (pen test scope registration), IAM service role, CloudWatch Log group. See `infra/lib/constructs/security-agent-construct.ts`.
+
 ---
 
 ## Event Schema
@@ -172,12 +186,14 @@ Events may include additional top-level fields depending on their type:
 | `cost` | `prism.d1.cost` | Commit SHA, total tokens, total cost, models used, correlation window |
 | `quality` | `prism.d1.quality` | AI defect rate, human defect rate, AI/human commit counts |
 | `security` | `prism.d1.security` | Alert type, table name, principal ARN, read count |
+| `security_agent_finding` | `prism.d1.security.{design_review,code_review,pen_test}` | Finding ID, phase, severity, CVSS, category, CWE, exploit validated, compliance mappings, AI origin, spec ref |
+| `security_remediation` | `prism.d1.security.remediation` | Finding ID, severity, remediation time hours, remediated by origin, fix PR number |
 
 ---
 
 ## Specialized Lambda Processors
 
-In addition to the core metrics-processor, five specialized Lambdas handle derived metric calculations:
+In addition to the core metrics-processor, eight specialized Lambdas handle derived metric calculations:
 
 | Lambda | Trigger | Input | Output |
 |--------|---------|-------|--------|
@@ -186,6 +202,9 @@ In addition to the core metrics-processor, five specialized Lambdas handle deriv
 | `prism-d1-defect-correlator` | `prism.d1.deploy` events | Failed deployment | `prism.d1.quality` event with AI vs human defect rates |
 | `prism-d1-spec-to-code-calculator` | `prism.d1.pr` events | Merged PR with Spec-Ref | `prism.d1.pr` event with spec_to_code_hours |
 | `prism-d1-exfiltration-detector` | CloudTrail DynamoDB read events (default bus) | DynamoDB Query/Scan/GetItem | `prism.d1.security` event when threshold exceeded |
+| `prism-d1-security-agent-processor` | `POST /security-findings` webhook or scheduled poll | Security Agent findings | `prism.d1.security.*` events enriched with team_id + AI origin |
+| `prism-d1-security-remediation-tracker` | `prism.d1.pr` events (merged PRs) | PR merge + open findings | `prism.d1.security.remediation` event with fix timing |
+| `prism-d1-security-response-automator` | `prism.d1.security.code_review` / `.pen_test` | Critical/High findings | Eval gate penalty + alarm escalation |
 
 ---
 
@@ -310,6 +329,13 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | Metric Name | Unit | Source |
 |------------|------|--------|
 | `ExfiltrationAlertCount` | Count | Exfiltration-detector Lambda |
+| `SecurityFindingCount` | Count | Security-agent-processor Lambda (dims: Phase, Severity) |
+| `SecurityCriticalFindingCount` | Count | Security-agent-processor Lambda (Critical + High only) |
+| `SecurityFindingByOrigin` | Count | Security-agent-processor Lambda (dims: AIOrigin) |
+| `SecurityFindingCVSS` | None (0-10) | Security-agent-processor Lambda (CVSS score per finding) |
+| `PenTestExploitCount` | Count | Security-agent-processor Lambda (validated exploits) |
+| `SecurityScanCount` | Count | Security-agent-processor Lambda (dims: Phase) |
+| `SecurityRemediationTimeHours` | Count (hours) | Security-remediation-tracker Lambda (dims: Severity, AIOrigin) |
 
 ---
 
@@ -325,6 +351,10 @@ Published to namespace `PRISM/D1/Velocity` with dimensions:
 | Bedrock Daily Cost High | BedrockCostUSD | > $100 | 1 day |
 | Token Efficiency Low | TokenEfficiency | > 500 | 6 hours |
 | Exfiltration Alert | ExfiltrationAlertCount | ≥ 1 | 1 hour |
+| Security Critical Finding | SecurityCriticalFindingCount | ≥ 1 | 1 hour |
+| Pen Test Exploit Detected | PenTestExploitCount | ≥ 1 | 1 hour |
+| Security Remediation SLA | SecurityRemediationTimeHours | avg > 72h | 1 day |
+| Security Finding Rate High | SecurityFindingCount | > 50 | 6 hours |
 
 ---
 
@@ -479,6 +509,20 @@ PRISM ships **4 dashboards** across two AWS services, each targeting a specific 
 
 ---
 
+### CloudWatch: CISO Compliance (`PRISM-D1-CISO-Compliance`)
+
+**Audience:** CISOs, security leaders, compliance officers
+**Update frequency:** Near real-time (30-day metric periods)
+**Purpose:** Security posture across all teams, AI code risk assessment, remediation SLA tracking.
+
+| Section | Widgets | What It Shows |
+|---------|---------|---------------|
+| **Security Posture** | Open critical findings, validated exploits, avg remediation time, scan volume | Overall security health at a glance |
+| **AI Code Risk Profile** | Security findings by code origin (AI vs human), remediation time by origin | Whether AI-generated code introduces more or fewer security issues |
+| **Shift-Left Effectiveness** | Findings by phase (design/code/pen test), guardrail + exfiltration trends | Whether teams are catching issues earlier in the lifecycle over time |
+
+---
+
 ## Token Usage & Cost Tracking
 
 Token consumption and cost tracking is now implemented via the CloudTrail → EventBridge pipeline.
@@ -609,6 +653,17 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Defect correlator | `infra/lib/lambda/defect-correlator.ts` | AI vs human defect rates on failed deploys |
 | Spec-to-code calculator | `infra/lib/lambda/spec-to-code-calculator.ts` | Spec → code cycle time |
 | PR review handler | `collector/github-webhook-handler/index.ts` | AI acceptance rate from PR reviews |
+
+### AWS Security Agent
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Security Agent CDK construct | `infra/lib/constructs/security-agent-construct.ts` | AgentSpace, TargetDomain, Pentest, IAM role |
+| Security Agent processor | `infra/lib/lambda/security-agent-processor.ts` | Finding ingestion + AI origin enrichment |
+| Remediation tracker | `infra/lib/lambda/security-remediation-tracker.ts` | Finding → fix time correlation |
+| Response automator | `infra/lib/lambda/security-response-automator.ts` | Critical finding → eval gate penalty + alarm |
+| Setup script | `bootstrapper/security-agent/setup.sh` | Customer onboarding for Security Agent |
+| Scan workflow | `bootstrapper/security-agent/prism-security-agent-scan.yml` | GitHub Actions for design review, code review, pen test |
 
 ### Workflows
 

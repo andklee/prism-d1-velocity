@@ -125,6 +125,8 @@ PRISM D1 ships two dashboard tiers — an Executive Readout and a Team Velocity 
 
 8. **AI vs Human Defect Comparison** — Only platform correlating deployment failures to AI vs human commit origins, providing side-by-side defect rates.
 
+9. **Integrated Pen Testing via AWS Security Agent** — Only platform with automated pen testing (OWASP Top 10 + business logic), design review, and code review findings flowing into the metrics pipeline. Findings correlated with AI origin, tracked for remediation SLA, and fed back into eval gates (SECURITY-09). CISO Compliance dashboard provides cross-team security posture and shift-left effectiveness.
+
 ### Where PRISM D1 Trails
 
 1. **Developer Experience** — No qualitative/survey capability. DX and Faros combine systems data with developer sentiment for a complete picture.

@@ -15,6 +15,7 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 - **[Executive Readout Dashboard](docs/dashboard-executive.html)** ([spec](docs/data-architecture.md#cloudwatch-executive-readout-prism-d1-executive-readout)) — Strategic overview: PRISM level, DORA summary, AI contribution trends, security & compliance posture, cost intelligence
 - **[PRISM Level Tracker](docs/data-architecture.md#quicksight-prism-level-tracker)** (QuickSight) — Maturity progression by team, radar chart of sub-dimensions, benchmarks by funding stage
 - **[AI-DORA Analysis](docs/data-architecture.md#quicksight-ai-dora-analysis)** (QuickSight) — Deep-dive exploratory analysis across teams, repos, and AI tools with KPI trend cards
+- **[CISO Compliance Dashboard](docs/data-architecture.md#cloudwatch-ciso-compliance-prism-d1-ciso-compliance)** — Security posture, AI code risk profile, shift-left effectiveness, remediation SLA tracking
 - **Enhanced DORA metrics** with AI-specific dimensions (acceptance rate, AI-to-merge ratio, eval gate pass rate)
 - **[Executive readout templates](docs/leader-guide/executive-readout-template.md)** that connect engineering metrics to business outcomes
 
@@ -24,7 +25,7 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 - **4-hour workshop** (+ extensions) with hands-on exercises using Claude Code + Bedrock
 - **Spec-driven development** templates compatible with Kiro
 - **AI agent development** — build agents with Strands SDK, MCP, and Amazon Bedrock AgentCore
-- **Bootstrapper code** — git hooks, CI workflows, eval harnesses, [AI-DLC steering files](bootstrapper/aidlc-steering/) (adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows)), and agent configs teams inherit permanently
+- **Bootstrapper code** — git hooks, CI workflows, eval harnesses, [AI-DLC steering files](bootstrapper/aidlc-steering/), [Security Agent setup](bootstrapper/security-agent/), and agent configs teams inherit permanently
 - **Sample application** with task API + MCP server (with [scope-based auth](sample-app/src/mcp/auth/)) + Strands agent to practice AI-DLC patterns
 
 ## Quick Start
