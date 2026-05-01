@@ -185,7 +185,7 @@ export function createDefaultPrismGuardrailProps(): BedrockGuardrailProps {
     regexFilters: [
       {
         name: 'aws-access-key',
-        pattern: '(?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9])',
+        pattern: 'AKIA[A-Z0-9]{16}',
         action: 'BLOCK',
       },
       {
