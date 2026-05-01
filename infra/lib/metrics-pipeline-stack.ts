@@ -22,7 +22,7 @@ export class MetricsPipelineStack extends cdk.Stack {
   public readonly guardrail: BedrockGuardrailConstruct;
   public readonly pricingTable: ModelPricingConstruct;
   public readonly identityMapping: IdentityMappingConstruct;
-  public readonly securityAgent: SecurityAgentConstruct;
+  public readonly securityAgent?: SecurityAgentConstruct;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -322,17 +322,21 @@ export class MetricsPipelineStack extends cdk.Stack {
     this.guardrail = new BedrockGuardrailConstruct(this, 'PrismGuardrail', createDefaultPrismGuardrailProps());
 
     // -------------------------------------------------------
-    // AWS Security Agent
+    // AWS Security Agent (opt-in — requires Security Agent access)
+    // Enable with: npx cdk deploy --context enableSecurityAgent=true
     // -------------------------------------------------------
-    this.securityAgent = new SecurityAgentConstruct(this, 'SecurityAgent', {
-      agentSpaceName: 'prism-d1-security',
-      description: 'PRISM D1 Security Agent space for design review, code review, and pen testing',
-      kmsKey: prismKmsKey,
-      codeRemediationStrategy: 'DISABLED', // Manual remediation tracked via PRISM pipeline
-      tags: {
-        'prism:pillar': 'security',
-      },
-    });
+    const enableSecurityAgent = this.node.tryGetContext('enableSecurityAgent') === 'true';
+    if (enableSecurityAgent) {
+      this.securityAgent = new SecurityAgentConstruct(this, 'SecurityAgent', {
+        agentSpaceName: 'prism-d1-security',
+        description: 'PRISM D1 Security Agent space for design review, code review, and pen testing',
+        kmsKey: prismKmsKey,
+        codeRemediationStrategy: 'DISABLED',
+        tags: {
+          'prism:pillar': 'security',
+        },
+      });
+    }
 
     // -------------------------------------------------------
     // VPC for Lambda isolation (Pillar 6)
