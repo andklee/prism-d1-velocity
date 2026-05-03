@@ -73,7 +73,11 @@ npx cdk bootstrap   # First time only
 npx cdk deploy --all
 ```
 
-This deploys: EventBridge bus, 8 Lambda processors, DynamoDB tables (KMS-encrypted), 5 CloudWatch dashboards, 12 alarms, Bedrock Guardrails, Security Agent AgentSpace, model pricing table, identity mapping table.
+This deploys: EventBridge bus, 8 Lambda processors, DynamoDB tables (KMS-encrypted), 5 CloudWatch dashboards, 12 alarms, Bedrock Guardrails, model pricing table, identity mapping table.
+
+> **For cost tracking:** Enable CloudTrail data events for Bedrock after deploying. See [Bootstrapper Step 6](bootstrapper/README.md#step-6-enable-cloudtrail-for-bedrock-required-for-cost-tracking). Without this, the Cost Intelligence dashboard sections will be empty.
+
+> **For Security Agent:** Add `--context enableSecurityAgent=true` if Security Agent is enabled in your account. See the [Security Agent Setup Guide](bootstrapper/security-agent/SETUP-GUIDE.md).
 
 ### Assess a Customer
 

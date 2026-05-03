@@ -496,7 +496,17 @@ PRISM ships **5 dashboards** across two AWS services, each targeting a specific 
 
 ## Token Usage & Cost Tracking
 
-Token consumption and cost tracking is now implemented via the CloudTrail → EventBridge pipeline.
+Token consumption and cost tracking is implemented via the CloudTrail → EventBridge pipeline.
+
+### Prerequisites
+
+| Requirement | How to Enable | Impact If Missing |
+|---|---|---|
+| **CloudTrail data events for Bedrock** | `aws cloudtrail put-event-selectors` with `AWS::Bedrock::Model` data events | No token tracking, no cost metrics, no cost dashboards, no budget alarms |
+| **Identity mapping table populated** | `aws dynamodb put-item` per developer (IAM ARN → email → team) | Cost attributed to "unknown" developer |
+| **Model pricing table seeded** | Auto-seeded on CDK deploy via Custom Resource | Cost calculations return $0 |
+
+See [Bootstrapper README Step 6](../bootstrapper/README.md#step-6-enable-cloudtrail-for-bedrock-required-for-cost-tracking) for the exact setup commands.
 
 ### What's tracked
 

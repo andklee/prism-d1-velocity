@@ -69,6 +69,80 @@ Edit `eval-harness/eval-config.json` to set your pass threshold and AWS region.
 
 The bootstrapper emits events to an EventBridge custom bus (`prism-d1-metrics`). The infrastructure to receive and visualize these events is in the `../infra/` directory. Deploy it to start seeing your metrics in CloudWatch and QuickSight.
 
+### Step 6: Enable CloudTrail for Bedrock (Required for Cost Tracking)
+
+The cost intelligence pipeline (token usage, cost-per-commit, token efficiency) requires CloudTrail data events for Bedrock. **This is not enabled by default.**
+
+```bash
+# Check if you have an existing trail
+aws cloudtrail describe-trails --region us-west-2 \
+  --query 'trailList[].Name' --output text
+
+# If no trail exists, create one
+aws cloudtrail create-trail \
+  --name prism-d1-trail \
+  --s3-bucket-name <your-cloudtrail-bucket> \
+  --region us-west-2
+
+aws cloudtrail start-logging --name prism-d1-trail --region us-west-2
+
+# Enable Bedrock data events on the trail
+aws cloudtrail put-event-selectors \
+  --trail-name <your-trail-name> \
+  --region us-west-2 \
+  --advanced-event-selectors '[
+    {
+      "Name": "ManagementEvents",
+      "FieldSelectors": [
+        {"Field": "eventCategory", "Equals": ["Management"]}
+      ]
+    },
+    {
+      "Name": "BedrockDataEvents",
+      "FieldSelectors": [
+        {"Field": "eventCategory", "Equals": ["Data"]},
+        {"Field": "resources.type", "Equals": ["AWS::Bedrock::Model"]}
+      ]
+    }
+  ]'
+
+# Verify
+aws cloudtrail get-event-selectors \
+  --trail-name <your-trail-name> \
+  --region us-west-2 \
+  --query 'AdvancedEventSelectors[].Name'
+```
+
+**Without this step**, the following features will not work:
+- Token usage tracking (BedrockTokensInput / BedrockTokensOutput)
+- Cost per commit (CostPerCommit)
+- Token efficiency (TokenEfficiency)
+- Budget alarms (BedrockDailyCostHigh)
+- Cost Intelligence dashboard sections
+
+**Note:** CloudTrail data events for Bedrock have a small cost (~$0.10 per 100,000 events). For a team of 20 engineers, this is typically < $5/month.
+
+### Step 7: Seed Developer Identity Mapping (Required for Cost Attribution)
+
+The cost pipeline attributes Bedrock usage to individual developers by matching IAM principal ARNs. Without this, the developer field shows "unknown."
+
+```bash
+# Find your team's IAM ARNs from CloudTrail
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventSource,AttributeValue=bedrock.amazonaws.com \
+  --max-results 20 --region us-west-2 \
+  --query 'Events[].{User:Username,Time:EventTime}' --output table
+
+# Add each developer
+aws dynamodb put-item --table-name prism-identity-mapping --region us-west-2 \
+  --item '{
+    "iam_principal": {"S": "arn:aws:sts::123456789012:assumed-role/YourRole/user@company.com"},
+    "developer_email": {"S": "user@company.com"},
+    "team_id": {"S": "your-team-id"},
+    "display_name": {"S": "User Name"}
+  }'
+```
+
 ## Adoption Path
 
 | Phase | Actions | Metrics You Get |
