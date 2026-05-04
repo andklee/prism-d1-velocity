@@ -1,4 +1,4 @@
-# Module 03: Instrumenting AI Metrics
+# Module 04: Instrumenting AI Metrics
 
 | | |
 |---|---|
