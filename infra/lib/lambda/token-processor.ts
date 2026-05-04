@@ -19,6 +19,7 @@ interface CloudTrailBedrockEvent {
     eventSource: string;
     eventName: string;
     eventTime: string;
+    userAgent?: string;
     userIdentity: {
       type: string;
       arn: string;
@@ -60,20 +61,40 @@ export async function handler(event: CloudTrailBedrockEvent): Promise<void> {
     return;
   }
 
-  // Look up model pricing
+  // Look up model pricing — with fuzzy model ID matching
+  // CloudTrail may log: us.anthropic.claude-sonnet-4-20250514-v1:0
+  // Pricing table has:  anthropic.claude-sonnet-4-20250514
+  // We try: exact → stripped → base family fallback
   let costUsd = 0;
+  const normalizedModelId = normalizeModelId(modelId);
+
   try {
-    const pricingResult = await dynamoClient.send(
+    // Try exact match first
+    let pricingResult = await dynamoClient.send(
       new GetItemCommand({
         TableName: PRICING_TABLE,
         Key: { model_id: { S: modelId } },
       }),
     );
 
+    // If no exact match, try normalized (stripped prefix/suffix)
+    if (!pricingResult.Item && normalizedModelId !== modelId) {
+      pricingResult = await dynamoClient.send(
+        new GetItemCommand({
+          TableName: PRICING_TABLE,
+          Key: { model_id: { S: normalizedModelId } },
+        }),
+      );
+    }
+
     if (pricingResult.Item) {
       const inputCostPer1k = parseFloat(pricingResult.Item.input_cost_per_1k?.N ?? '0');
       const outputCostPer1k = parseFloat(pricingResult.Item.output_cost_per_1k?.N ?? '0');
       costUsd = (inputTokens / 1000) * inputCostPer1k + (outputTokens / 1000) * outputCostPer1k;
+    } else {
+      // Fallback: estimate based on model family
+      costUsd = estimateCostByFamily(normalizedModelId, inputTokens, outputTokens);
+      console.warn(`Model ${modelId} not in pricing table, using fallback estimate: $${costUsd.toFixed(6)}`);
     }
   } catch (err) {
     console.error('Failed to look up pricing:', err);
@@ -112,8 +133,8 @@ export async function handler(event: CloudTrailBedrockEvent): Promise<void> {
       unit: 'count',
     },
     ai_context: {
-      tool: 'bedrock',
-      model: modelId,
+      tool: detectToolFromUserAgent(detail.userAgent ?? ''),
+      model: normalizedModelId,
       origin: 'ai-generated',
     },
     token: {
@@ -141,6 +162,81 @@ export async function handler(event: CloudTrailBedrockEvent): Promise<void> {
   );
 
   console.log(
-    `Emitted token event: ${inputTokens} in / ${outputTokens} out, cost $${costUsd.toFixed(6)}, developer ${developerEmail}`,
+    `Emitted token event: ${inputTokens} in / ${outputTokens} out, cost $${costUsd.toFixed(6)}, developer ${developerEmail}, tool ${detectToolFromUserAgent(detail.userAgent ?? '')}`,
   );
+}
+
+/**
+ * Normalize model IDs to match the pricing table.
+ * CloudTrail may log region-prefixed and versioned model IDs:
+ *   us.anthropic.claude-sonnet-4-20250514-v1:0
+ *   eu.anthropic.claude-sonnet-4-20250514-v2:0
+ * The pricing table has base IDs:
+ *   anthropic.claude-sonnet-4-20250514
+ */
+function normalizeModelId(modelId: string): string {
+  let normalized = modelId;
+
+  // Strip region prefix: us.anthropic.* → anthropic.*
+  normalized = normalized.replace(/^(us|eu|ap|sa|me|af|ca)\./i, '');
+
+  // Strip version suffix: -v1:0, -v2:1, etc.
+  normalized = normalized.replace(/-v\d+:\d+$/, '');
+
+  // Strip version suffix variant: :0, :1
+  normalized = normalized.replace(/:\d+$/, '');
+
+  return normalized;
+}
+
+/**
+ * Fallback cost estimation when model ID is not in the pricing table.
+ * Uses model family heuristics based on the model name.
+ */
+function estimateCostByFamily(modelId: string, inputTokens: number, outputTokens: number): number {
+  const lower = modelId.toLowerCase();
+
+  // Opus models
+  if (lower.includes('opus')) {
+    return (inputTokens / 1000) * 0.015 + (outputTokens / 1000) * 0.075;
+  }
+  // Sonnet models
+  if (lower.includes('sonnet')) {
+    return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
+  }
+  // Haiku models
+  if (lower.includes('haiku')) {
+    return (inputTokens / 1000) * 0.0008 + (outputTokens / 1000) * 0.004;
+  }
+  // Titan models
+  if (lower.includes('titan')) {
+    return (inputTokens / 1000) * 0.0005 + (outputTokens / 1000) * 0.0015;
+  }
+  // Nova models
+  if (lower.includes('nova')) {
+    return (inputTokens / 1000) * 0.001 + (outputTokens / 1000) * 0.004;
+  }
+  // Unknown — use Sonnet pricing as reasonable default
+  return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
+}
+
+/**
+ * Detect which AI tool made the Bedrock call based on the CloudTrail userAgent.
+ */
+function detectToolFromUserAgent(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+
+  if (ua.includes('claude-code') || ua.includes('claudecode')) return 'claude-code';
+  if (ua.includes('kiro')) return 'kiro';
+  if (ua.includes('q-developer') || ua.includes('qdeveloper') || ua.includes('amazon-q')) return 'q-developer';
+  if (ua.includes('strands') || ua.includes('strands-agents')) return 'strands-agent';
+  if (ua.includes('cursor')) return 'cursor';
+  if (ua.includes('copilot')) return 'copilot';
+  if (ua.includes('boto3') || ua.includes('botocore')) return 'application-python';
+  if (ua.includes('aws-sdk-js') || ua.includes('aws-sdk-node')) return 'application-node';
+  if (ua.includes('aws-sdk-java')) return 'application-java';
+  if (ua.includes('aws-sdk-go')) return 'application-go';
+  if (ua.includes('aws-cli')) return 'aws-cli';
+
+  return 'bedrock';
 }

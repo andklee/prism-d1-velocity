@@ -7,7 +7,12 @@ const PRICING_TABLE = process.env.PRICING_TABLE!;
  * Bedrock model pricing data (per 1K tokens, USD).
  * Updated as of 2026-04-27. Adjust values when pricing changes.
  */
-const PRICING_DATA = [
+/**
+ * Base pricing data. The seeder generates regional variants automatically
+ * (us.anthropic.*, eu.anthropic.*) so both exact and cross-region inference
+ * model IDs match during lookup.
+ */
+const BASE_PRICING = [
   {
     model_id: 'anthropic.claude-opus-4-20250514',
     input_cost_per_1k: 0.015,
@@ -21,6 +26,13 @@ const PRICING_DATA = [
     output_cost_per_1k: 0.015,
     provider: 'Anthropic',
     model_family: 'Claude 4',
+  },
+  {
+    model_id: 'anthropic.claude-sonnet-4-6-20250514',
+    input_cost_per_1k: 0.003,
+    output_cost_per_1k: 0.015,
+    provider: 'Anthropic',
+    model_family: 'Claude 4.6',
   },
   {
     model_id: 'anthropic.claude-haiku-4-5-20251001',
@@ -50,7 +62,40 @@ const PRICING_DATA = [
     provider: 'Amazon',
     model_family: 'Titan',
   },
+  {
+    model_id: 'amazon.nova-pro-v1:0',
+    input_cost_per_1k: 0.0008,
+    output_cost_per_1k: 0.0032,
+    provider: 'Amazon',
+    model_family: 'Nova',
+  },
+  {
+    model_id: 'amazon.nova-lite-v1:0',
+    input_cost_per_1k: 0.00006,
+    output_cost_per_1k: 0.00024,
+    provider: 'Amazon',
+    model_family: 'Nova',
+  },
 ];
+
+// Generate regional variants: us.anthropic.*, eu.anthropic.*
+const REGION_PREFIXES = ['us', 'eu', 'ap'];
+const PRICING_DATA: typeof BASE_PRICING = [];
+
+for (const entry of BASE_PRICING) {
+  // Add base model ID
+  PRICING_DATA.push(entry);
+
+  // Add regional variants for Anthropic models (cross-region inference)
+  if (entry.model_id.startsWith('anthropic.')) {
+    for (const prefix of REGION_PREFIXES) {
+      PRICING_DATA.push({
+        ...entry,
+        model_id: `${prefix}.${entry.model_id}`,
+      });
+    }
+  }
+}
 
 export async function handler(event: any): Promise<{ Status: string }> {
   console.log('Seeding pricing data...', JSON.stringify(event));
