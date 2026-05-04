@@ -14,6 +14,7 @@ __pycache__
 
 # Internal presentation materials (keep local only)
 docs/leader-guide/presentation-script.md
+docs/leader-guide/opening-slide-content.md
 
 # Local scan/test artifacts
 assessment/reports/scan-result.json
