@@ -1,7 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { execSync } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { runScan } from '../../scanner/index.js';
 import type { ScanResult } from '../../scanner/types.js';
@@ -14,7 +12,8 @@ import {
   type AgentSessionState,
 } from './interview-agent.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Detect ECS mode — disables repo scanning, only allows JSON import
+const isEcsMode = !!(process.env.PRISM_ECS_MODE || process.env.ECS_CONTAINER_METADATA_URI);
 
 // ---------------------------------------------------------------------------
 // Interview section definitions — enriched from interview-guide.md
@@ -231,11 +230,7 @@ const PAGE_STYLE = `
 `;
 
 function scanPage(): string {
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>PRISM D1 Assessment</title><style>${PAGE_STYLE}</style></head><body><div class="page">
-<h1>PRISM D1 Velocity Assessment</h1>
-<p class="subtitle">AI-Assisted Development Lifecycle Maturity Scanner</p>
-<div class="card" style="margin-top:20px">
+  const scanSection = isEcsMode ? '' : `<div class="card" style="margin-top:20px">
   <h2>Option A: Scan a Repository</h2>
   <form id="scanForm" method="POST" action="/scan">
     <label for="repoPath">Local repository path</label>
@@ -243,9 +238,15 @@ function scanPage(): string {
     <button type="submit">Scan Repository</button>
     <span id="spinner" class="spinner hidden"></span>
   </form>
-</div>
-<div class="card">
-  <h2>Option B: Import Previous Scan Results</h2>
+</div>`;
+
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PRISM D1 Assessment</title><style>${PAGE_STYLE}</style></head><body><div class="page">
+<h1>PRISM D1 Velocity Assessment</h1>
+<p class="subtitle">AI-Assisted Development Lifecycle Maturity Scanner${isEcsMode ? ' (Cloud Mode — Import Only)' : ''}</p>
+${scanSection}
+<div class="card"${isEcsMode ? ' style="margin-top:20px"' : ''}>
+  <h2>${isEcsMode ? 'Import Scan Results' : 'Option B: Import Previous Scan Results'}</h2>
   <p class="subtitle" style="margin-bottom:12px">Upload a JSON file from a previous scan to view results and continue to the interview.</p>
   <form id="importForm" method="POST" action="/import">
     <input type="file" id="importFile" accept=".json" style="margin-bottom:12px" required>
@@ -1001,6 +1002,9 @@ function startServer(port: number) {
       }
 
       if (req.method === 'POST' && url === '/scan') {
+        if (isEcsMode) {
+          return send(res, 403, 'text/html', '<h1>Repo scanning is disabled in cloud mode. Please import scan results.</h1>');
+        }
         const form = await parseFormBody(req);
         const repoPath = form.repoPath?.trim();
 
@@ -1237,21 +1241,26 @@ function startServer(port: number) {
     }
   });
 
-  server.listen(port, () => {
-    const url = `http://localhost:${port}`;
-    console.log(`\n  PRISM D1 Assessment Web UI`);
+  const host = isEcsMode ? '0.0.0.0' : 'localhost';
+  server.listen(port, host, () => {
+    const url = isEcsMode ? `http://0.0.0.0:${port}` : `http://localhost:${port}`;
+    console.log(`\n  PRISM D1 Assessment Web UI${isEcsMode ? ' (ECS Mode - Import Only)' : ''}`);
     console.log(`  Running at: ${url}\n`);
-    // Try to open browser
-    try {
-      const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-      execSync(`${open} ${url}`, { stdio: 'ignore' });
-    } catch { /* ignore if browser can't open */ }
+    // Try to open browser (skip in ECS)
+    if (!isEcsMode) {
+      try {
+        const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+        execSync(`${open} http://localhost:${port}`, { stdio: 'ignore' });
+      } catch { /* ignore if browser can't open */ }
+    }
   });
 }
 
 // ---------------------------------------------------------------------------
 // CLI command export
 // ---------------------------------------------------------------------------
+export { startServer };
+
 export default {
   description: 'Launch the assessment web interface',
   options: [
