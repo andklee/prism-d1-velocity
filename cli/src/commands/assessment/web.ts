@@ -196,37 +196,58 @@ function computeBlended(scannerTotal: number, scannerMax: number, interviewTotal
 // ---------------------------------------------------------------------------
 const PAGE_STYLE = `
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc;color:#1e293b;line-height:1.6}
-  .page{max-width:900px;margin:0 auto;padding:40px 24px}
-  h1{font-size:24px;font-weight:700;margin-bottom:8px}
-  h2{font-size:18px;font-weight:600;margin:24px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
-  .card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:28px;margin-bottom:20px}
+  body{font-family:'Amazon Ember',ember-display,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9f9fb;color:#232F3E;line-height:1.6}
+  .page-bg-wash{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-20;pointer-events:none}
+  .page-bg-wash svg{width:100%;height:100%}
+  .hero{background:#f9f9fb;position:relative;overflow:hidden;padding:56px 24px 64px}
+  .hero-inner{max-width:900px;margin:0 auto;position:relative;z-index:1;display:flex;align-items:center;gap:40px}
+  .hero-text{flex:1}
+  .hero h1{font-size:2.75rem;font-weight:700;color:#232F3E;margin-bottom:12px;line-height:1.2}
+  .hero .subtitle{color:#544F69;font-size:1.25rem;line-height:2rem}
+  .hero-cta{display:inline-block;margin-top:24px;background:linear-gradient(90deg,#DF2A5D 0.41%,#7C5AED 99.55%);color:#fff;border:none;padding:14px 28px;border-radius:100px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 32px 4px rgba(8,37,70,.18);transition:.3s;text-decoration:none}
+  .hero-cta:hover{background:linear-gradient(90deg,#7A55F4 0.41%,#DD1D53 99.11%);transform:scale(1.02)}
+  .hero-image{position:relative;flex:0 0 300px;height:220px;border-radius:20px}
+  .hero-image::before{content:'';position:absolute;inset:-30px -70px;z-index:0;border-radius:24px;background:linear-gradient(135deg,rgba(223,42,93,.12),rgba(124,90,237,.10),rgba(124,232,244,.12));filter:blur(25px)}
+  .hero-image img,.hero-image .placeholder{position:relative;z-index:1;width:100%;height:100%;object-fit:cover;border-radius:20px}
+  .hero-image .placeholder{background:linear-gradient(135deg,rgba(124,90,237,.7) 0%,rgba(124,232,244,.7) 100%);display:flex;align-items:center;justify-content:center;font-size:48px}
+  .page{max-width:900px;margin:0 auto;padding:32px 24px 40px}
+  h1{font-size:1.5rem;font-weight:700;margin-bottom:8px}
+  h2{font-size:1.25rem;font-weight:700;margin:24px 0 12px;padding-bottom:8px;border-bottom:none;color:#232F3E}
+  .card{position:relative;background:#fff;border-radius:16px;box-shadow:0 4px 40px rgba(51,0,102,.05);padding:32px;margin-bottom:24px;overflow:visible}
+  .card::before{content:'';position:absolute;inset:-20px -40px;z-index:-1;border-radius:24px;background:linear-gradient(135deg,rgba(223,42,93,.12),rgba(124,90,237,.10),rgba(124,232,244,.12));filter:blur(25px)}
+
+  .card h2{margin-top:0;padding-bottom:0}
   label{display:block;font-weight:500;margin-bottom:4px;font-size:14px}
-  input[type=text],input[type=number],select{width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;margin-bottom:12px}
+  input[type=text],input[type=number],select{width:100%;padding:10px 14px;border:1px solid #DBDBE1;border-radius:8px;font-size:14px;margin-bottom:12px;transition:border-color .2s}
+  input[type=text]:focus,input[type=number]:focus,select:focus{outline:none;border-color:#2074D5;box-shadow:0 0 0 3px rgba(32,116,213,.12)}
   input[type=number]{width:80px}
-  button{background:linear-gradient(135deg,#0066ff,#7c3aed);color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-right:8px}
-  button:hover{opacity:.9}
-  button.secondary{background:#64748b}
-  .badge{display:inline-block;padding:3px 12px;border-radius:16px;font-size:13px;font-weight:600;color:#fff}
-  .badge-green{background:#22c55e}.badge-amber{background:#f59e0b}.badge-red{background:#ef4444}
+  button{background:#2074D5;color:#fff;border:none;padding:12px 24px;border-radius:100px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px;transition:.3s;letter-spacing:.4px}
+  button:hover{background:#1766C2}
+  button.gradient{background:linear-gradient(90deg,#DF2A5D 0.41%,#7C5AED 99.55%);box-shadow:0 4px 32px 4px rgba(8,37,70,.18)}
+  button.gradient:hover{background:linear-gradient(90deg,#7A55F4 0.41%,#DD1D53 99.11%)}
+  button.secondary{background:white;color:#2074D5;border:1px solid #2074D5}
+  button.secondary:hover{background:#F6F9FF}
+  .badge{display:inline-block;padding:4px 14px;border-radius:100px;font-size:13px;font-weight:700;color:#fff}
+  .badge-green{background:#37A04D}.badge-amber{background:#FF9900}.badge-red{background:#D13212}
   table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
-  th{background:#f1f5f9;color:#475569;font-weight:600;text-align:left;padding:8px 12px;font-size:12px;text-transform:uppercase}
-  td{padding:8px 12px;border-bottom:1px solid #f1f5f9}
-  .progress-bg{background:#e2e8f0;border-radius:4px;height:8px;width:100%}
-  .progress-fill{border-radius:4px;height:8px}
-  .fill-green{background:#22c55e}.fill-amber{background:#f59e0b}.fill-red{background:#ef4444}
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .score-big{font-size:36px;font-weight:800;color:#0066ff}
-  .subtitle{color:#64748b;font-size:14px}
+  th{background:#F4F3F4;color:#544F69;font-weight:700;text-align:left;padding:10px 12px;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:10px 12px;border-bottom:1px solid #EEEDF2}
+  .progress-bg{background:#EEEDF2;border-radius:100px;height:8px;width:100%}
+  .progress-fill{border-radius:100px;height:8px}
+  .fill-green{background:#37A04D}.fill-amber{background:#FF9900}.fill-red{background:#D13212}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .score-big{font-size:2.75rem;font-weight:700;background:linear-gradient(90deg,#7CE8F4,#7C5AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .subtitle{color:#544F69;font-size:14px}
   .section-q{display:flex;align-items:center;gap:12px;margin-bottom:8px}
   .section-q label{margin:0;flex:1}
   .section-q input{margin:0;width:70px}
   .checkbox-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .checkbox-row input{width:auto;margin:0}
-  .notes{width:100%;min-height:60px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical}
+  .notes{width:100%;min-height:60px;padding:10px;border:1px solid #DBDBE1;border-radius:8px;font-size:13px;resize:vertical}
   .hidden{display:none!important}
-  .spinner{display:inline-block;width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:#0066ff;border-radius:50%;animation:spin .6s linear infinite}
+  .spinner{display:inline-block;width:18px;height:18px;border:3px solid #EEEDF2;border-top-color:#7C5AED;border-radius:50%;animation:spin .6s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:768px){.hero-inner{flex-direction:column;text-align:center}.hero-image{display:none}.hero h1{font-size:2rem}}
 `;
 
 function scanPage(): string {
@@ -241,39 +262,52 @@ function scanPage(): string {
 </div>`;
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>PRISM D1 Assessment</title><style>${PAGE_STYLE}</style></head><body><div class="page">
-<h1>PRISM D1 Velocity Assessment</h1>
-<p class="subtitle">AI-Assisted Development Lifecycle Maturity Scanner${isEcsMode ? ' (Cloud Mode — Import Only)' : ''}</p>
+<title>PRISM D1 Assessment</title><meta name="theme-color" content="#f9f9fb"><style>${PAGE_STYLE}</style></head><body>
+<div class="page-bg-wash"><svg viewBox="0 0 1440 415" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"><path d="M0 0h1440v235L0 415V0Z" fill="url(#pgbg)"/><defs><linearGradient id="pgbg" x1="0" y1="208" x2="1440" y2="208" gradientUnits="userSpaceOnUse"><stop stop-color="#7CE8F4" stop-opacity="0.08"/><stop offset="1" stop-color="#7C5AED" stop-opacity="0.04"/></linearGradient></defs></svg></div>
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <h1>PRISM D1 Velocity Assessment</h1>
+      <p class="subtitle">AI-Assisted Development Lifecycle Maturity Scanner${isEcsMode ? ' — Cloud Mode' : ''}</p>
+    </div>
+    <div class="hero-image">
+      <div class="placeholder">🚀</div>
+    </div>
+  </div>
+</div>
+<div class="page">
 ${scanSection}
 <div class="card"${isEcsMode ? ' style="margin-top:20px"' : ''}>
   <h2>${isEcsMode ? 'Import Scan Results' : 'Option B: Import Previous Scan Results'}</h2>
   <p class="subtitle" style="margin-bottom:12px">Upload a JSON file from a previous scan to view results and continue to the interview.</p>
-  <form id="importForm" method="POST" action="/import">
+  <form id="importForm" method="POST" action="/import" enctype="multipart/form-data">
     <input type="file" id="importFile" accept=".json" style="margin-bottom:12px" required>
-    <input type="hidden" id="importData" name="importData">
+    <input type="hidden" name="scanData" id="scanDataInput">
     <button type="submit">Import &amp; Start Interview →</button>
   </form>
 </div>
 </div>
 <script>
-document.getElementById('scanForm').addEventListener('submit', function() {
-  document.getElementById('spinner').classList.remove('hidden');
-});
-window.addEventListener('pageshow', function() {
-  document.getElementById('spinner').classList.add('hidden');
-});
+var sf = document.getElementById('scanForm');
+if (sf) { sf.addEventListener('submit', function() { document.getElementById('spinner').classList.remove('hidden'); }); }
+window.addEventListener('pageshow', function() { var s = document.getElementById('spinner'); if (s) s.classList.add('hidden'); });
 document.getElementById('importForm').addEventListener('submit', function(e) {
   var fileInput = document.getElementById('importFile');
+  console.log('[PRISM] Submit fired, file:', fileInput.files ? fileInput.files[0] : 'none');
   if (!fileInput.files || !fileInput.files[0]) { e.preventDefault(); alert('Select a JSON file first.'); return; }
   e.preventDefault();
-  var form = this;
   var reader = new FileReader();
   reader.onload = function(ev) {
+    console.log('[PRISM] FileReader loaded, length:', ev.target.result.length);
     try {
       var data = JSON.parse(ev.target.result);
+      console.log('[PRISM] Parsed OK, repoName:', data.repoName, 'categories:', !!data.categories);
       if (!data.repoName || !data.categories) { alert('Invalid scan JSON. Expected a PRISM scanner output file.'); return; }
-      document.getElementById('importData').value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-      form.submit();
+      var hiddenInput = document.getElementById('scanDataInput');
+      hiddenInput.value = ev.target.result;
+      console.log('[PRISM] Hidden input value length:', hiddenInput.value.length);
+      console.log('[PRISM] Submitting form, enctype:', document.getElementById('importForm').enctype);
+      document.getElementById('importForm').submit();
     } catch(err) { alert('Could not parse JSON: ' + err.message); }
   };
   reader.readAsText(fileInput.files[0]);
@@ -291,9 +325,9 @@ function scanResultsPage(scan: ScanResultJSON, imported: boolean = false): strin
       <td>${pct}%</td></tr>`;
   }).join('');
 
-  const strengthsHtml = scan.strengths.map(s => `<li>${s}</li>`).join('');
-  const gapsHtml = scan.gaps.map(g => `<li>${g}</li>`).join('');
-  const recsHtml = scan.recommendations.map(r => `<li>${r}</li>`).join('');
+  const strengthsHtml = (scan.strengths || []).map(s => `<li>${s}</li>`).join('');
+  const gapsHtml = (scan.gaps || []).map(g => `<li>${g}</li>`).join('');
+  const recsHtml = (scan.recommendations || []).map(r => `<li>${r}</li>`).join('');
 
   // Encode scan data for passing to interview form
   const scanB64 = Buffer.from(JSON.stringify(scan)).toString('base64');
@@ -915,8 +949,35 @@ function parseFormBody(req: IncomingMessage): Promise<Record<string, string>> {
     req.on('end', () => {
       const params: Record<string, string> = {};
       for (const pair of body.split('&')) {
-        const [k, v] = pair.split('=');
-        if (k) params[decodeURIComponent(k)] = decodeURIComponent((v || '').replace(/\+/g, ' '));
+        const idx = pair.indexOf('=');
+        const k = idx > -1 ? pair.slice(0, idx) : pair;
+        const v = idx > -1 ? pair.slice(idx + 1) : '';
+        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' '));
+      }
+      resolve(params);
+    });
+    req.on('error', reject);
+  });
+}
+
+function parseMultipartBody(req: IncomingMessage): Promise<Record<string, string>> {
+  return new Promise((resolve, reject) => {
+    const ct = req.headers['content-type'] || '';
+    const boundaryMatch = ct.match(/boundary=(.+)/);
+    if (!boundaryMatch) return reject(new Error('No multipart boundary'));
+    const boundary = '--' + boundaryMatch[1];
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      const body = Buffer.concat(chunks).toString();
+      const parts = body.split(boundary).slice(1, -1);
+      const params: Record<string, string> = {};
+      for (const part of parts) {
+        const nameMatch = part.match(/name="([^"]+)"/);
+        if (!nameMatch) continue;
+        const valStart = part.indexOf('\r\n\r\n');
+        if (valStart === -1) continue;
+        params[nameMatch[1]] = part.slice(valStart + 4).replace(/\r\n$/, '');
       }
       resolve(params);
     });
@@ -1038,18 +1099,16 @@ function startServer(port: number) {
       }
 
       if (req.method === 'POST' && url === '/import') {
-        const form = await parseFormBody(req);
-        const scanJson = form.importData;
-        if (!scanJson) return send(res, 400, 'text/html', '<h1>No scan data received</h1>');
-        try {
-          const scan = JSON.parse(Buffer.from(scanJson, 'base64').toString());
-          if (!scan.repoName || !scan.categories) {
-            return send(res, 400, 'text/html', '<h1>Invalid scan JSON — missing repoName or categories</h1>');
-          }
-          return send(res, 200, 'text/html', scanResultsPage(scan, true));
-        } catch {
-          return send(res, 400, 'text/html', '<h1>Could not parse imported scan data</h1>');
+        const form = await parseMultipartBody(req);
+        if (!form.scanData) return send(res, 400, 'text/plain', 'Empty scanData field');
+        let scan: any;
+        try { scan = JSON.parse(form.scanData); } catch (e: any) {
+          return send(res, 400, 'text/plain', `Invalid JSON (${form.scanData.length} bytes): ${e.message}`);
         }
+        if (!scan.repoName || !scan.categories) {
+          return send(res, 400, 'text/html', '<h1>Invalid scan JSON — missing repoName or categories</h1>');
+        }
+        return send(res, 200, 'text/html', scanResultsPage(scan, true));
       }
 
       if (req.method === 'POST' && url === '/interview') {
