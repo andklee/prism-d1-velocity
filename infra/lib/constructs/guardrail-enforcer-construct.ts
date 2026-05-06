@@ -28,7 +28,7 @@ export class GuardrailEnforcerConstruct extends Construct {
     this.layer = new lambda.LayerVersion(this, 'GuardrailEnforcerLayer', {
       layerVersionName: 'prism-d1-guardrail-enforcer',
       description: 'PRISM D1 Bedrock Guardrail enforcement client',
-      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+      compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
       code: lambda.Code.fromAsset(path.join(__dirname, '..', 'lambda', 'layers', 'guardrail-enforcer')),
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });

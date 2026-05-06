@@ -19,3 +19,7 @@ docs/leader-guide/opening-slide-content.md
 # Local scan/test artifacts
 assessment/reports/scan-result.json
 assessment/scanner/package-lock.json
+
+infra/cdk.context.json
+sample-app/.lambda-bundle/
+sample-app/sample-app-lambda.zip

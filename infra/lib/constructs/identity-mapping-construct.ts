@@ -16,6 +16,7 @@ export class IdentityMappingConstruct extends Construct {
       tableName: 'prism-identity-mapping',
       partitionKey: { name: 'iam_principal', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 

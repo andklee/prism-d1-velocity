@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 
 /**
  * Creates a VPC with private subnets for PRISM Lambda functions.
@@ -25,6 +26,12 @@ export class PrismVpcConstruct extends Construct {
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
         },
       ],
+      flowLogs: {
+        default: {
+          destination: ec2.FlowLogDestination.toCloudWatchLogs(),
+          trafficType: ec2.FlowLogTrafficType.ALL,
+        },
+      },
     });
 
     this.lambdaSecurityGroup = new ec2.SecurityGroup(this, 'LambdaSG', {
@@ -67,5 +74,9 @@ export class PrismVpcConstruct extends Construct {
       value: this.vpc.vpcId,
       exportName: 'PrismD1VpcId',
     });
+
+    NagSuppressions.addResourceSuppressions(this.lambdaSecurityGroup, [
+      { id: 'CdkNagValidationFailure', reason: 'SG egress uses Fn::GetAtt for VPC CIDR which cannot be statically validated' },
+    ]);
   }
 }

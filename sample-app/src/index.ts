@@ -14,6 +14,10 @@ app.use(express.json());
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+app.get('/.well-known/aws/securityagent-domain-verification.json', (_req, res) => {
+  res.json({ tokens: [process.env.DOMAIN_VERIFICATION_TOKEN ?? ''] });
+});
+
 app.use(tasksRouter);
 
 // ---------------------------------------------------------------------------

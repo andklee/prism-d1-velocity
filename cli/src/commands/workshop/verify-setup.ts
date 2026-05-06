@@ -134,21 +134,29 @@ async function offerInstall(name: string, installCmd: string): Promise<boolean> 
 async function checkAwsCli(verifyOnly = false) {
   heading('1. AWS CLI & Credentials');
 
-  if (commandExists('aws')) {
-    const { stdout } = run('aws --version 2>&1');
-    pass(`AWS CLI installed (${stdout.split('\n')[0]})`);
+  if (commandExists('aws') || commandExists('/usr/local/bin/aws')) {
+    if (!commandExists('aws') && commandExists('/usr/local/bin/aws')) {
+      warn('AWS CLI found at /usr/local/bin/aws but not in PATH. Add to your shell profile:');
+      console.log('        export PATH="/usr/local/bin:$PATH"');
+    }
+    const { stdout } = run(`${commandExists('aws') ? 'aws' : '/usr/local/bin/aws'} --version 2>&1`);
+    const versionLine = stdout.split('\n')[0];
+    const installedVersion = versionLine.match(/aws-cli\/([\d.]+)/)?.[1] ?? '';
+    const latestCheck = run('curl -sf https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst | head -5');
+    const latestVersion = latestCheck.ok ? (latestCheck.stdout.match(/^(\d+\.\d+\.\d+)/m)?.[1] ?? '') : '';
+
+    if (latestVersion && installedVersion && installedVersion !== latestVersion) {
+      warn(`AWS CLI ${installedVersion} installed — latest is ${latestVersion}. Security Agent commands may not work on older versions.`);
+    } else {
+      pass(`AWS CLI installed (${versionLine.split(' ')[0]}${latestVersion ? ' — latest' : ''})`);
+    }
   } else {
     fail('AWS CLI not found', 'Install from https://aws.amazon.com/cli/');
     if (!verifyOnly) {
       if (IS_MAC) {
-        await offerInstall('AWS CLI', 'brew install awscli');
+        await offerInstall('AWS CLI', 'curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o /tmp/AWSCLIV2.pkg && sudo installer -pkg /tmp/AWSCLIV2.pkg -target /');
       } else {
-        const cmd = installCmd('awscli', { overrides: { dnf: 'awscli2', yum: 'awscli' } });
-        if (LINUX_PKG_MGR) {
-          await offerInstall('AWS CLI', cmd);
-        } else {
-          console.log('        Follow: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html');
-        }
+        await offerInstall('AWS CLI', 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -qo /tmp/awscliv2.zip -d /tmp && sudo /tmp/aws/install --update');
       }
     }
   }

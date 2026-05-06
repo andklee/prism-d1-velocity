@@ -11,6 +11,7 @@
     "mcp": "ts-node src/mcp/server.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-eventbridge": "^3.1043.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "cors": "^2.8.5",
     "express": "^4.21.0",

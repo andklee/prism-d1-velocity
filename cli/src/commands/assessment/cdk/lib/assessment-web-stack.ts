@@ -64,9 +64,6 @@ export class AssessmentWebStack extends cdk.Stack {
         requireDigits: true,
         requireSymbols: true,
       },
-      mfa: cognito.Mfa.REQUIRED,
-      mfaSecondFactor: { sms: false, otp: true },
-      featurePlan: cognito.FeaturePlan.PLUS,
       advancedSecurityMode: cognito.AdvancedSecurityMode.ENFORCED,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
@@ -214,7 +211,8 @@ export class AssessmentWebStack extends cdk.Stack {
     ], true);
 
     NagSuppressions.addResourceSuppressions(userPool, [
-      { id: 'AwsSolutions-COG2', reason: 'MFA is REQUIRED via OTP' },
+      { id: 'AwsSolutions-COG2', reason: 'MFA not required for internal assessment tool' },
+      { id: 'AwsSolutions-COG8', reason: 'Plus tier not needed without MFA' },
     ]);
 
     // Outputs

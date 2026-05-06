@@ -81,19 +81,19 @@ export class SecurityAgentConstruct extends Construct {
       description: 'Service role for AWS Security Agent pen tests in PRISM D1',
     });
 
-    // Grant Security Agent permissions to access target resources
+    // Grant full Security Agent permissions (needed for CLI and web console)
     this.serviceRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          'securityagent:StartPentest',
-          'securityagent:GetPentest',
-          'securityagent:ListPentests',
-          'securityagent:GetPentestFindings',
-        ],
+        actions: ['securityagent:*'],
         resources: ['*'],
       }),
     );
+
+    // Grant KMS permissions for encrypted agent spaces
+    if (props.kmsKey) {
+      props.kmsKey.grantEncryptDecrypt(this.serviceRole);
+    }
 
     // Grant CloudWatch Logs access for pen test logging
     this.serviceRole.addToPolicy(
@@ -104,7 +104,7 @@ export class SecurityAgentConstruct extends Construct {
           'logs:CreateLogStream',
           'logs:PutLogEvents',
         ],
-        resources: ['arn:aws:logs:*:*:log-group:/prism/security-agent/*'],
+        resources: ['arn:aws:logs:*:*:log-group:/aws/securityagent/*'],
       }),
     );
 
@@ -130,6 +130,9 @@ export class SecurityAgentConstruct extends Construct {
       ...(props.kmsKey && {
         kmsKeyId: props.kmsKey.keyArn,
       }),
+      awsResources: {
+        iamRoles: [this.serviceRole.roleArn],
+      },
       tags: [
         { key: 'prism:component', value: 'security-agent' },
         { key: 'prism:agent-space', value: props.agentSpaceName },

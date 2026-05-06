@@ -20,23 +20,24 @@ export class ModelPricingConstruct extends Construct {
       tableName: 'prism-model-pricing',
       partitionKey: { name: 'model_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     // Seed pricing data via Custom Resource
     const seedFunction = new lambda.Function(this, 'SeedPricingFunction', {
       functionName: 'prism-d1-seed-pricing',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'seed-pricing.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '..', 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb esbuild > /dev/null 2>&1',
-              'npx esbuild seed-pricing.ts --bundle --platform=node --target=node20 --outfile=/asset-output/seed-pricing.js --external:@aws-sdk/*',
+              'npx esbuild seed-pricing.ts --bundle --platform=node --target=node22 --outfile=/asset-output/seed-pricing.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -44,7 +45,7 @@ export class ModelPricingConstruct extends Construct {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, '..', 'lambda', 'seed-pricing.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'seed-pricing.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, '..', 'lambda', 'seed-pricing.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'seed-pricing.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;

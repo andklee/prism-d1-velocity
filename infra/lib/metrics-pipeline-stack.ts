@@ -14,6 +14,7 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import { PrismVpcConstruct } from './constructs/prism-vpc-construct';
 import { GuardrailEnforcerConstruct } from './constructs/guardrail-enforcer-construct';
 import { SecurityAgentConstruct } from './constructs/security-agent-construct';
+import { NagSuppressions } from 'cdk-nag';
 
 export class MetricsPipelineStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;
@@ -36,6 +37,12 @@ export class MetricsPipelineStack extends cdk.Stack {
       enableKeyRotation: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    // Grant Security Agent service access to KMS key for agent space encryption
+    prismKmsKey.grantEncryptDecrypt(new iam.ServicePrincipal('securityagent.amazonaws.com'));
+    // Grant CloudWatch Logs access to KMS key for Security Agent log groups
+    prismKmsKey.grant(new iam.ServicePrincipal('logs.amazonaws.com'),
+      'kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey*', 'kms:DescribeKey');
 
     // -------------------------------------------------------
     // EventBridge custom event bus
@@ -92,17 +99,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // -------------------------------------------------------
     const metricsProcessor = new lambda.Function(this, 'MetricsProcessor', {
       functionName: 'prism-d1-metrics-processor',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'metrics-processor.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-cloudwatch esbuild > /dev/null 2>&1',
-              'npx esbuild metrics-processor.ts --bundle --platform=node --target=node20 --outfile=/asset-output/metrics-processor.js --external:@aws-sdk/*',
+              'npx esbuild metrics-processor.ts --bundle --platform=node --target=node22 --outfile=/asset-output/metrics-processor.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -111,7 +118,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'metrics-processor.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'metrics-processor.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'metrics-processor.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'metrics-processor.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -199,17 +206,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Token processor Lambda — handles CloudTrail Bedrock events
     const tokenProcessor = new lambda.Function(this, 'TokenProcessor', {
       functionName: 'prism-d1-token-processor',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'token-processor.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild token-processor.ts --bundle --platform=node --target=node20 --outfile=/asset-output/token-processor.js --external:@aws-sdk/*',
+              'npx esbuild token-processor.ts --bundle --platform=node --target=node22 --outfile=/asset-output/token-processor.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -217,7 +224,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'token-processor.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'token-processor.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'token-processor.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'token-processor.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -261,17 +268,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Token-to-commit correlator Lambda
     const tokenCorrelator = new lambda.Function(this, 'TokenCommitCorrelator', {
       functionName: 'prism-d1-token-correlator',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'token-commit-correlator.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild token-commit-correlator.ts --bundle --platform=node --target=node20 --outfile=/asset-output/token-commit-correlator.js --external:@aws-sdk/*',
+              'npx esbuild token-commit-correlator.ts --bundle --platform=node --target=node22 --outfile=/asset-output/token-commit-correlator.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -279,7 +286,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'token-commit-correlator.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'token-commit-correlator.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'token-commit-correlator.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'token-commit-correlator.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -368,17 +375,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // -------------------------------------------------------
     const exfiltrationDetector = new lambda.Function(this, 'ExfiltrationDetector', {
       functionName: 'prism-d1-exfiltration-detector',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'exfiltration-detector.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild exfiltration-detector.ts --bundle --platform=node --target=node20 --outfile=/asset-output/exfiltration-detector.js --external:@aws-sdk/*',
+              'npx esbuild exfiltration-detector.ts --bundle --platform=node --target=node22 --outfile=/asset-output/exfiltration-detector.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -386,7 +393,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'exfiltration-detector.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'exfiltration-detector.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'exfiltration-detector.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'exfiltration-detector.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -429,17 +436,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // -------------------------------------------------------
     const defectCorrelator = new lambda.Function(this, 'DefectCorrelator', {
       functionName: 'prism-d1-defect-correlator',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'defect-correlator.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild defect-correlator.ts --bundle --platform=node --target=node20 --outfile=/asset-output/defect-correlator.js --external:@aws-sdk/*',
+              'npx esbuild defect-correlator.ts --bundle --platform=node --target=node22 --outfile=/asset-output/defect-correlator.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -447,7 +454,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'defect-correlator.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'defect-correlator.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'defect-correlator.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'defect-correlator.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -489,17 +496,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // -------------------------------------------------------
     const specToCodeCalc = new lambda.Function(this, 'SpecToCodeCalculator', {
       functionName: 'prism-d1-spec-to-code-calculator',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'spec-to-code-calculator.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild spec-to-code-calculator.ts --bundle --platform=node --target=node20 --outfile=/asset-output/spec-to-code-calculator.js --external:@aws-sdk/*',
+              'npx esbuild spec-to-code-calculator.ts --bundle --platform=node --target=node22 --outfile=/asset-output/spec-to-code-calculator.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -507,7 +514,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'spec-to-code-calculator.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'spec-to-code-calculator.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'spec-to-code-calculator.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'spec-to-code-calculator.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -548,17 +555,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // -------------------------------------------------------
     const securityAgentProcessor = new lambda.Function(this, 'SecurityAgentProcessor', {
       functionName: 'prism-d1-security-agent-processor',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-agent-processor.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild security-agent-processor.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-agent-processor.js --external:@aws-sdk/*',
+              'npx esbuild security-agent-processor.ts --bundle --platform=node --target=node22 --outfile=/asset-output/security-agent-processor.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -566,7 +573,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-agent-processor.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-agent-processor.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-agent-processor.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'security-agent-processor.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -595,17 +602,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Security Remediation Tracker
     const securityRemediationTracker = new lambda.Function(this, 'SecurityRemediationTracker', {
       functionName: 'prism-d1-security-remediation-tracker',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-remediation-tracker.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild security-remediation-tracker.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-remediation-tracker.js --external:@aws-sdk/*',
+              'npx esbuild security-remediation-tracker.ts --bundle --platform=node --target=node22 --outfile=/asset-output/security-remediation-tracker.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -613,7 +620,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-remediation-tracker.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-remediation-tracker.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-remediation-tracker.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'security-remediation-tracker.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -652,17 +659,17 @@ export class MetricsPipelineStack extends cdk.Stack {
     // Security Response Automator
     const securityResponseAutomator = new lambda.Function(this, 'SecurityResponseAutomator', {
       functionName: 'prism-d1-security-response-automator',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-response-automator.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
               'npm init -y > /dev/null 2>&1',
               'npm install --save @aws-sdk/client-dynamodb @aws-sdk/client-eventbridge esbuild > /dev/null 2>&1',
-              'npx esbuild security-response-automator.ts --bundle --platform=node --target=node20 --outfile=/asset-output/security-response-automator.js --external:@aws-sdk/*',
+              'npx esbuild security-response-automator.ts --bundle --platform=node --target=node22 --outfile=/asset-output/security-response-automator.js --external:@aws-sdk/*',
             ].join(' && '),
           ],
           local: {
@@ -670,7 +677,7 @@ export class MetricsPipelineStack extends cdk.Stack {
               try {
                 const { execSync } = require('child_process');
                 execSync(
-                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-response-automator.ts')} --bundle --platform=node --target=node20 --outfile=${path.join(outputDir, 'security-response-automator.js')} --external:@aws-sdk/*`,
+                  `npx esbuild ${path.join(__dirname, 'lambda', 'security-response-automator.ts')} --bundle --platform=node --target=node22 --outfile=${path.join(outputDir, 'security-response-automator.js')} --external:@aws-sdk/*`,
                   { stdio: 'pipe' },
                 );
                 return true;
@@ -723,6 +730,15 @@ export class MetricsPipelineStack extends cdk.Stack {
         },
       }),
     );
+
+    // -------------------------------------------------------
+    // CDK-nag suppressions
+    // -------------------------------------------------------
+    NagSuppressions.addStackSuppressions(this, [
+      { id: 'AwsSolutions-IAM4', reason: 'AWSLambdaBasicExecutionRole is required for Lambda CloudWatch Logs access' },
+      { id: 'AwsSolutions-IAM5', reason: 'CDK grant methods generate wildcard permissions scoped to specific resources' },
+      { id: 'AwsSolutions-L1', reason: 'All Lambdas use nodejs22.x which is the latest Node.js runtime available' },
+    ]);
 
     // -------------------------------------------------------
     // Outputs
