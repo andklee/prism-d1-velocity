@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import tasksRouter from './routes/tasks';
+import healthRouter from './routes/health';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -18,6 +19,7 @@ app.get('/.well-known/aws/securityagent-domain-verification.json', (_req, res) =
   res.json({ tokens: [process.env.DOMAIN_VERIFICATION_TOKEN ?? ''] });
 });
 
+app.use(healthRouter);
 app.use(tasksRouter);
 
 // ---------------------------------------------------------------------------
