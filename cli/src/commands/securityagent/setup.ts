@@ -14,9 +14,15 @@ function runCapture(cmd: string) {
   }
 }
 
+function cleanEnv() {
+  const env = { ...process.env };
+  Object.keys(env).filter(k => k.startsWith('npm_')).forEach(k => delete env[k]);
+  return env;
+}
+
 function run(cmd: string, opts: Record<string, any> = {}) {
   try {
-    execSync(cmd, { encoding: 'utf8', stdio: 'inherit', cwd: INFRA_DIR, ...opts });
+    execSync(cmd, { encoding: 'utf8', stdio: 'inherit', cwd: INFRA_DIR, env: cleanEnv(), ...opts });
     return true;
   } catch {
     return false;
@@ -48,7 +54,7 @@ export default {
     }
 
     const cdkEnv = {
-      ...process.env,
+      ...cleanEnv(),
       CDK_DEFAULT_ACCOUNT: account.stdout,
       CDK_DEFAULT_REGION: region,
       AWS_DEFAULT_REGION: region,

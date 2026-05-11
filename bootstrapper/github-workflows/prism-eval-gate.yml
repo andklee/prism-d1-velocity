@@ -229,27 +229,24 @@ jobs:
           script: |
             const pr = context.issue.number;
             const opts = { owner: context.repo.owner, repo: context.repo.repo };
-            const runStarted = new Date().toISOString();
-            core.setOutput('run_started', runStarted);
 
             // Phase 1: Wait for Security Agent to start (2 min)
-            let agentActive = false;
+            let reviewingComment = null;
             for (let i = 0; i < 12; i++) {
               const { data: comments } = await github.rest.issues.listComments({ ...opts, issue_number: pr });
-              if (comments.some(c => c.user.login === 'aws-security-agent[bot]' && c.body.includes('reviewing your pull request'))) {
-                agentActive = true;
-                break;
-              }
+              reviewingComment = comments.find(c => c.user.login === 'aws-security-agent[bot]' && c.body.includes('reviewing your pull request'));
+              if (reviewingComment) break;
               await new Promise(r => setTimeout(r, 10000));
             }
-            if (!agentActive) { core.setOutput('findings', '0'); return; }
+            if (!reviewingComment) { core.setOutput('findings', '0'); return; }
 
-            // Phase 2: Wait for completion (10 min)
+            // Phase 2: Wait for completion (10 min) — look after the "reviewing" comment
+            const since = reviewingComment.created_at;
             for (let i = 0; i < 40; i++) {
-              const { data: comments } = await github.rest.issues.listComments({ ...opts, issue_number: pr, since: runStarted });
+              const { data: comments } = await github.rest.issues.listComments({ ...opts, issue_number: pr, since });
               const done = comments.filter(c => c.user.login === 'aws-security-agent[bot]').some(c => !c.body.includes('reviewing your pull request'));
               if (done) {
-                const { data: reviewComments } = await github.rest.pulls.listReviewComments({ ...opts, pull_number: pr, since: runStarted });
+                const { data: reviewComments } = await github.rest.pulls.listReviewComments({ ...opts, pull_number: pr, since });
                 const findings = reviewComments.filter(c => c.user.login === 'aws-security-agent[bot]');
                 core.setOutput('findings', String(findings.length));
                 return;
