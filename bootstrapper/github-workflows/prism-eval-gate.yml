@@ -131,7 +131,9 @@ jobs:
             TOTAL_SCORE=$(echo "${TOTAL_SCORE} + ${SCORE}" | bc -l)
             TOTAL_HALLUCINATIONS=$((TOTAL_HALLUCINATIONS + HALLUC))
 
-            if [[ "${RESULT}" == "PASS" ]]; then
+            if [[ "${RESULT}" == "SKIP" ]]; then
+              continue
+            elif [[ "${RESULT}" == "PASS" ]]; then
               PASS_COUNT=$((PASS_COUNT + 1))
             else
               FAIL_COUNT=$((FAIL_COUNT + 1))

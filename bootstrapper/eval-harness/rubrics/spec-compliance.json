@@ -13,7 +13,8 @@
         "3": "Most requirements implemented. Some acceptance criteria missing.",
         "2": "Significant requirements missing. Only happy path covered.",
         "1": "Most requirements unimplemented or fundamentally misunderstood."
-      }
+      },
+      "requires_spec": true
     },
     {
       "name": "interface_adherence",
@@ -25,7 +26,8 @@
         "3": "Most interfaces match. Some deviations from spec'd contracts.",
         "2": "Significant deviations from specified interfaces.",
         "1": "Interfaces bear little resemblance to the spec."
-      }
+      },
+      "requires_spec": true
     },
     {
       "name": "edge_case_handling",
@@ -37,7 +39,8 @@
         "3": "Common edge cases handled. Some spec-defined error paths missing.",
         "2": "Only happy path. Most spec-defined edge cases unhandled.",
         "1": "No edge case handling despite spec requirements."
-      }
+      },
+      "requires_spec": true
     },
     {
       "name": "spec_intent_fidelity",
@@ -49,7 +52,8 @@
         "3": "Technically meets requirements but misses some of the spec's intent.",
         "2": "Follows spec literally but misses the underlying purpose.",
         "1": "Implementation contradicts the spec's intent."
-      }
+      },
+      "requires_spec": true
     }
   ],
   "pass_threshold": 0.82,

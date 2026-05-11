@@ -26,7 +26,7 @@ function run(cmd: string, opts: Record<string, any> = {}) {
 export default {
   description: 'Deploy Security Agent infrastructure and create web console application',
   options: [
-    { flags: '--profile <name>', description: 'AWS CLI profile', default: 'aws-dev' },
+    { flags: '--profile <name>', description: 'AWS CLI profile', default: process.env.AWS_PROFILE || 'default' },
     { flags: '--region <region>', description: 'AWS region', default: 'us-west-2' },
   ],
   action(options: { profile: string; region: string }) {
@@ -35,9 +35,11 @@ export default {
 
     // Deploy CDK with security agent enabled
     console.log('🚀 Deploying Security Agent infrastructure...');
-    const cdkBin = existsSync(resolve(INFRA_DIR, 'node_modules/.bin/cdk'))
-      ? resolve(INFRA_DIR, 'node_modules/.bin/cdk')
-      : 'npx cdk';
+    if (!existsSync(resolve(INFRA_DIR, 'node_modules'))) {
+      console.log('   Installing CDK dependencies...');
+      if (!run('npm install')) { console.error('npm install failed.'); process.exit(1); }
+    }
+    const cdkBin = resolve(INFRA_DIR, 'node_modules/.bin/cdk');
 
     const account = runCapture(`aws sts get-caller-identity --profile ${profile} --query Account --output text`);
     if (!account.ok) {

@@ -40,8 +40,21 @@ AWS_REGION=$(jq -r '.aws_region' "${CONFIG_FILE}")
 RUBRIC_NAME=$(jq -r '.rubric_name' "${RUBRIC_FILE}")
 CODE_CONTENT=$(cat "${INPUT_FILE}")
 
+# --- Filter criteria: skip requires_spec criteria when no spec provided ---
+CRITERIA_FILTER='if $spec == "" then .criteria | map(select(.requires_spec != true)) else .criteria end'
+ACTIVE_CRITERIA=$(jq --arg spec "${SPEC_FILE}" "${CRITERIA_FILTER}" "${RUBRIC_FILE}")
+ACTIVE_COUNT=$(echo "${ACTIVE_CRITERIA}" | jq 'length')
+
+if [[ "${ACTIVE_COUNT}" -eq 0 ]]; then
+  echo "Skipped: ${RUBRIC_NAME} (all criteria require spec)"
+  echo "Score: 0"
+  echo "Result: SKIP"
+  echo "Hallucinations: 0"
+  exit 0
+fi
+
 # --- Build rubric text for prompt ---
-RUBRIC_CRITERIA=$(jq -r '.criteria[] | "- \(.name) [weight=\(.weight)]: \(.description)\n  Scoring: \(.scoring | if type == "object" then to_entries | map("\(.key): \(.value)") | join("; ") else . end)"' "${RUBRIC_FILE}")
+RUBRIC_CRITERIA=$(echo "${ACTIVE_CRITERIA}" | jq -r '.[] | "- \(.name) [weight=\(.weight)]: \(.description)\n  Scoring: \(.scoring | if type == "object" then to_entries | map("\(.key): \(.value)") | join("; ") else . end)"')
 
 SPEC_SECTION="No spec provided. Evaluate based on code quality criteria only."
 if [[ -n "${SPEC_FILE}" && -f "${SPEC_FILE}" ]]; then
@@ -85,11 +98,12 @@ EVAL_JSON=$(jq -r '.content[0].text' "${RESP_FILE}" 2>/dev/null | sed -n '/^{/,/
 [[ -n "${EVAL_JSON}" ]] || { echo "Error: could not parse model response" >&2; exit 2; }
 
 # --- Calculate weighted score (client-side, don't trust LLM math) ---
-OVERALL=$(echo "${EVAL_JSON}" | jq --argjson rubric "$(cat "${RUBRIC_FILE}")" '
+OVERALL=$(echo "${EVAL_JSON}" | jq --argjson criteria "${ACTIVE_CRITERIA}" '
+  ($criteria | map(.weight) | add) as $total_weight |
   [.evaluations[] as $e |
-    ($rubric.criteria[] | select(.name == $e.criterion)) as $c |
+    ($criteria[] | select(.name == $e.criterion)) as $c |
     ($e.score * $c.weight)
-  ] | add // 0')
+  ] | (add // 0) / $total_weight')
 
 # --- Detect hallucinations ---
 HALLUCINATIONS=$(echo "${EVAL_JSON}" | jq '[.evaluations[] | select(.rationale | test("hallucinated|does not exist|not found"; "i"))] | length')

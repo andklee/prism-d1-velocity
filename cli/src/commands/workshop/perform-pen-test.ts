@@ -27,7 +27,7 @@ function runCapture(cmd: string, opts: Record<string, any> = {}) {
 export default {
   description: 'Deploy sample-app and run Security Agent pen test setup (Lambda + API Gateway + domain verification)',
   options: [
-    { flags: '--profile <name>', description: 'AWS CLI profile', default: 'aws-dev' },
+    { flags: '--profile <name>', description: 'AWS CLI profile', default: process.env.AWS_PROFILE || 'default' },
     { flags: '--region <region>', description: 'AWS region', default: 'us-west-2' },
   ],
   action(options: { profile: string; region: string }) {
