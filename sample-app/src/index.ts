@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import tasksRouter from './routes/tasks';
 import healthRouter from './routes/health';
+import authRouter from './routes/auth';
+import { seedDefaultUser } from './models/userStore';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -20,6 +22,7 @@ app.get('/.well-known/aws/securityagent-domain-verification.json', (_req, res) =
 });
 
 app.use(healthRouter);
+app.use(authRouter);
 app.use(tasksRouter);
 
 // ---------------------------------------------------------------------------
@@ -41,8 +44,10 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // Start server (skip when imported for testing)
 // ---------------------------------------------------------------------------
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`PRISM sample-app listening on http://localhost:${PORT}`);
+  seedDefaultUser().then(() => {
+    app.listen(PORT, () => {
+      console.log(`PRISM sample-app listening on http://localhost:${PORT}`);
+    });
   });
 }
 
