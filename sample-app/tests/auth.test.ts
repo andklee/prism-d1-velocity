@@ -1,8 +1,10 @@
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 import app from '../src/index';
 import { seedDefaultUser, userStore } from '../src/models/userStore';
-import { JWTPayload } from '../src/types';
+import { JWTPayload, User } from '../src/types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'default-secret-key-change-in-production';
 
@@ -15,6 +17,21 @@ afterAll(() => {
   // Clean up user store after tests
   userStore.clear();
 });
+
+/**
+ * Helper function to register a user with a specific email case
+ */
+async function registerUser(email: string, password: string): Promise<User> {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user: User = {
+    id: uuidv4(),
+    email,
+    passwordHash,
+    createdAt: new Date().toISOString(),
+  };
+  userStore.set(email.toLowerCase(), user);
+  return user;
+}
 
 describe('POST /auth/login', () => {
   describe('Successful authentication', () => {
@@ -63,6 +80,28 @@ describe('POST /auth/login', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('token');
+    });
+
+    it('authenticates user registered with uppercase email using lowercase login', async () => {
+      // Register a new user with uppercase email
+      await registerUser('ADMIN@EXAMPLE.COM', 'SecurePass123');
+
+      const response = await request(app)
+        .post('/auth/login')
+        .set('Content-Type', 'application/json')
+        .send({
+          email: 'admin@example.com',
+          password: 'SecurePass123',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('token');
+      expect(response.body).toHaveProperty('expiresIn', 3600);
+
+      // Verify token contains the original email from registration
+      const { token } = response.body;
+      const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      expect(decoded.email).toBe('ADMIN@EXAMPLE.COM');
     });
   });
 
