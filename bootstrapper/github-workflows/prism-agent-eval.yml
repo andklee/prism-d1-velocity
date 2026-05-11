@@ -6,9 +6,9 @@
 #   - OIDC provider configured for GitHub Actions in your AWS account
 #   - IAM role with bedrock:InvokeModel and events:PutEvents permissions
 #   - Repository secret PRISM_METRICS_ROLE_ARN set to the OIDC role ARN
-#   - .prism/config.json committed to the repo (created by metric-hooks/install.sh)
-#   - eval-harness/ directory copied into your repo
-#   - Agent entry point supports --mock flag for dry-run execution
+#   - .prism/config.json committed to the repo (created by: bash prism-cli bootstrapper install-git-hooks)
+#   - .prism/eval-harness/ installed (run: bash prism-cli bootstrapper install-eval-harness)
+#   - (Optional) Agent entry point supports --mock flag for dry-run execution
 
 name: PRISM Agent Eval
 
@@ -130,9 +130,10 @@ jobs:
         id: eval
         if: steps.detect-agent.outputs.has_agent_changes == 'true'
         run: |
-          chmod +x eval-harness/run-eval.sh
+          set -o pipefail
+          chmod +x .prism/eval-harness/run-eval.sh
 
-          RUBRIC="eval-harness/rubrics/agent-quality.json"
+          RUBRIC=".prism/eval-harness/rubrics/agent-quality.json"
 
           # If agent produced output, evaluate it
           if [[ -s /tmp/agent-output.json ]]; then
@@ -145,7 +146,7 @@ jobs:
           echo "Evaluating: ${EVAL_TARGET} against ${RUBRIC}"
 
           set +e
-          OUTPUT=$(./eval-harness/run-eval.sh "${RUBRIC}" "${EVAL_TARGET}" 2>&1)
+          OUTPUT=$(./.prism/eval-harness/run-eval.sh "${RUBRIC}" "${EVAL_TARGET}" 2>&1)
           EXIT_CODE=$?
           set -e
 
@@ -255,6 +256,8 @@ jobs:
 
       - name: Emit prism.d1.agent.eval event
         if: steps.detect-agent.outputs.has_agent_changes == 'true'
+        env:
+          SCORE: ${{ steps.eval.outputs.score }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -262,7 +265,7 @@ jobs:
             --arg team_id "${{ steps.prism-config.outputs.team_id }}" \
             --arg repo "${{ github.repository }}" \
             --arg timestamp "${TIMESTAMP}" \
-            --argjson score "${{ steps.eval.outputs.score || 0 }}" \
+            --argjson score "${SCORE:-0}" \
             --arg result "${{ steps.eval.outputs.result }}" \
             --argjson file_count "${{ steps.detect-agent.outputs.file_count }}" \
             --arg pr_number "${{ github.event.pull_request.number }}" \

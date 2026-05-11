@@ -128,8 +128,6 @@ export type PrismDetailType =
   | 'prism.d1.agent.eval'
   | 'prism.d1.guardrail'
   | 'prism.d1.mcp.tool_call'
-  | 'prism.d1.token'
-  | 'prism.d1.cost'
   | 'prism.d1.security'
   | 'prism.d1.security.design_review'
   | 'prism.d1.security.code_review'

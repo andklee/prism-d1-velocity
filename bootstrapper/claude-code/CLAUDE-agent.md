@@ -148,7 +148,7 @@ Agent-specific metrics extend the base PRISM metrics schema:
 |---|---|
 | Agent workflow spec template | `spec-templates/agent-workflow.md` |
 | MCP server spec template | `spec-templates/mcp-server.md` |
-| Agent eval rubric | `eval-harness/rubrics/agent-quality.json` |
+| Agent eval rubric | `.prism/.prism/eval-harness/rubrics/agent-quality.json` |
 | AgentCore configs | `agent-configs/` |
 | Guardrails template | `agent-configs/guardrails-template.json` |
 | Agent eval workflow | `.github/workflows/prism-agent-eval.yml` |

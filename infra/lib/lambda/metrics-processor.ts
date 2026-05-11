@@ -67,25 +67,6 @@ interface MCPToolCallDetail {
   result_status: 'success' | 'error' | 'denied';
 }
 
-interface TokenDetail {
-  model_id: string;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  cost_usd: number;
-  iam_principal: string;
-  developer_email: string;
-  session_id?: string;
-}
-
-interface CostDetail {
-  commit_sha: string;
-  total_tokens: number;
-  total_cost_usd: number;
-  models_used: string[];
-  developer_email: string;
-  correlation_window_minutes?: number;
-}
 
 interface QualityDetail {
   deployment_id: string;
@@ -149,8 +130,6 @@ interface MetricDetail {
   eval?: EvalDetail;
   guardrail?: GuardrailTriggerDetail;
   mcp_tool_call?: MCPToolCallDetail;
-  token?: TokenDetail;
-  cost?: CostDetail;
   quality?: QualityDetail;
   security?: SecurityDetail;
   security_agent_finding?: SecurityAgentFinding;
@@ -603,60 +582,7 @@ async function publishCloudWatchMetrics(
     }
   }
 
-  // Token usage metrics (Bedrock)
-  if (detail.token) {
-    const tokenDimensions = [
-      ...sharedDimensions,
-      { Name: 'Model', Value: detail.token.model_id },
-    ];
-    const developerDimensions = [
-      ...tokenDimensions,
-      { Name: 'Developer', Value: detail.token.developer_email ?? 'unknown' },
-    ];
-    metricData.push(
-      {
-        MetricName: 'BedrockTokensInput',
-        Value: detail.token.input_tokens,
-        Unit: StandardUnit.Count,
-        Dimensions: developerDimensions,
-        Timestamp: new Date(detail.timestamp),
-      },
-      {
-        MetricName: 'BedrockTokensOutput',
-        Value: detail.token.output_tokens,
-        Unit: StandardUnit.Count,
-        Dimensions: developerDimensions,
-        Timestamp: new Date(detail.timestamp),
-      },
-      {
-        MetricName: 'BedrockCostUSD',
-        Value: detail.token.cost_usd,
-        Unit: StandardUnit.None,
-        Dimensions: developerDimensions,
-        Timestamp: new Date(detail.timestamp),
-      },
-    );
-  }
 
-  // Cost-per-commit metrics
-  if (detail.cost) {
-    metricData.push({
-      MetricName: 'CostPerCommit',
-      Value: detail.cost.total_cost_usd,
-      Unit: StandardUnit.None,
-      Dimensions: sharedDimensions,
-      Timestamp: new Date(detail.timestamp),
-    });
-    if (detail.cost.total_tokens > 0 && detail.metric?.value > 0) {
-      metricData.push({
-        MetricName: 'TokenEfficiency',
-        Value: detail.cost.total_tokens / detail.metric.value,
-        Unit: StandardUnit.None,
-        Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
-      });
-    }
-  }
 
   // Quality / defect rate metrics
   if (detail.quality) {
@@ -722,15 +648,6 @@ async function publishCloudWatchMetrics(
           ...sharedDimensions,
           { Name: 'AIOrigin', Value: finding.ai_origin },
         ],
-        Timestamp: new Date(detail.timestamp),
-      });
-    }
-    if (finding.exploit_validated) {
-      metricData.push({
-        MetricName: 'PenTestExploitCount',
-        Value: 1,
-        Unit: StandardUnit.Count,
-        Dimensions: sharedDimensions,
         Timestamp: new Date(detail.timestamp),
       });
     }

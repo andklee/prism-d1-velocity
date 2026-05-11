@@ -211,6 +211,5 @@ The AI-DLC workflow generates PRISM metrics at these points:
 | Eval gate runs | `prism.d1.eval` | Eval score, pass/fail, rubric name |
 | Agent invocation | `prism.d1.agent` | Steps, tools, tokens, duration |
 | Guardrail triggered | `prism.d1.guardrail` | Category, action, agent name |
-| Bedrock API call | `prism.d1.token` | Input/output tokens, cost |
 
 All metrics flow to CloudWatch dashboards automatically via the PRISM pipeline.

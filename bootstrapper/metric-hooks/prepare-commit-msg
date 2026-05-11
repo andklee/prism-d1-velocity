@@ -2,7 +2,8 @@
 # prepare-commit-msg — Detect AI-assisted commits and add origin trailers.
 #
 # This hook detects if the commit was made via Claude Code, Kiro, or other AI tools
-# and adds AI-Origin, AI-Model, and Spec-Ref trailers to the commit message.
+# and adds AI-Origin, AI-Model, AI-Token, and Spec-Ref trailers to the commit message.
+# Token tracking powered by codeburn (npm install -g codeburn).
 #
 # Installation: metric-hooks/install.sh
 
@@ -79,52 +80,47 @@ if [[ -n "${MSG_SPEC}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Track Claude Code token usage via ccusage
+# Track AI token usage via codeburn
 # ---------------------------------------------------------------------------
 AI_INPUT_TOKENS=""
 AI_OUTPUT_TOKENS=""
 AI_COST=""
 
-if [[ "${AI_TOOL}" == "claude-code" ]] && command -v ccusage &>/dev/null; then
+if [[ -n "${AI_TOOL}" ]] && command -v codeburn &>/dev/null; then
     REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
     TRACKER_DIR="${REPO_ROOT}/.prism/tokentracker"
     CURRENT_USER=$(git config user.email 2>/dev/null || whoami)
-    # Sanitize username for filename (replace @ and . with _)
     SAFE_USER=$(echo "${CURRENT_USER}" | sed 's/[@.]/_/g')
     TRACKER_FILE="${TRACKER_DIR}/${SAFE_USER}.json"
 
-    # Get current cumulative token counts from ccusage monthly
-    CCUSAGE_JSON=$(ccusage monthly --json 2>/dev/null || echo "")
+    # Get lifetime token totals from codeburn (all-time, monotonically increasing)
+    CODEBURN_JSON=$(codeburn report -p all --format json 2>/dev/null || echo "")
 
-    if [[ -n "${CCUSAGE_JSON}" ]]; then
-        CURRENT_INPUT=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.inputTokens // 0' 2>/dev/null || echo "0")
-        CURRENT_OUTPUT=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.outputTokens // 0' 2>/dev/null || echo "0")
-        CURRENT_COST=$(echo "${CCUSAGE_JSON}" | jq -r '.totals.totalCost // 0' 2>/dev/null || echo "0")
+    if [[ -n "${CODEBURN_JSON}" ]]; then
+        CURRENT_INPUT=$(echo "${CODEBURN_JSON}" | jq -r '[.models[]?.inputTokens // 0] | add // 0' 2>/dev/null || echo "0")
+        CURRENT_OUTPUT=$(echo "${CODEBURN_JSON}" | jq -r '[.models[]?.outputTokens // 0] | add // 0' 2>/dev/null || echo "0")
+        CURRENT_COST=$(echo "${CODEBURN_JSON}" | jq -r '.overview.cost // 0' 2>/dev/null || echo "0")
 
         if [[ -f "${TRACKER_FILE}" ]]; then
-            # Read previous snapshot
             PREV_INPUT=$(jq -r '.inputTokens // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
             PREV_OUTPUT=$(jq -r '.outputTokens // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
             PREV_COST=$(jq -r '.costUSD // 0' "${TRACKER_FILE}" 2>/dev/null || echo "0")
 
-            # Calculate delta since last commit
             AI_INPUT_TOKENS=$(( CURRENT_INPUT - PREV_INPUT ))
             AI_OUTPUT_TOKENS=$(( CURRENT_OUTPUT - PREV_OUTPUT ))
             AI_COST=$(echo "${CURRENT_COST} - ${PREV_COST}" | bc 2>/dev/null || echo "0")
 
-            # Guard against negative values (e.g., new month rollover)
-            if [[ "${AI_INPUT_TOKENS}" -lt 0 ]]; then AI_INPUT_TOKENS="${CURRENT_INPUT}"; fi
-            if [[ "${AI_OUTPUT_TOKENS}" -lt 0 ]]; then AI_OUTPUT_TOKENS="${CURRENT_OUTPUT}"; fi
-            if (( $(echo "${AI_COST} < 0" | bc 2>/dev/null || echo "0") )); then AI_COST="${CURRENT_COST}"; fi
+            # Guard against negative values (e.g., deleted session files)
+            if [[ "${AI_INPUT_TOKENS}" -lt 0 ]]; then AI_INPUT_TOKENS=0; fi
+            if [[ "${AI_OUTPUT_TOKENS}" -lt 0 ]]; then AI_OUTPUT_TOKENS=0; fi
+            if (( $(echo "${AI_COST} < 0" | bc 2>/dev/null || echo "0") )); then AI_COST="0"; fi
         else
-            # First run — initialize tracker, set tokens to 0 for this commit
             mkdir -p "${TRACKER_DIR}"
             AI_INPUT_TOKENS=0
             AI_OUTPUT_TOKENS=0
             AI_COST="0"
         fi
 
-        # Save current snapshot for next commit
         mkdir -p "${TRACKER_DIR}"
         cat > "${TRACKER_FILE}" <<SNAPSHOT
 {

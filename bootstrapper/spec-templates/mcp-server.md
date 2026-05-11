@@ -148,4 +148,4 @@ Bedrock Evaluation should check:
 - **Idempotency**: Do read-only tools return consistent results? Do write tools handle retries safely?
 - **Test coverage**: Do tests cover all acceptance criteria scenarios?
 
-Rubric: `eval-harness/rubrics/code-quality.json`, `eval-harness/rubrics/agent-quality.json`
+Rubric: `.prism/.prism/eval-harness/rubrics/code-quality.json`, `.prism/.prism/eval-harness/rubrics/agent-quality.json`

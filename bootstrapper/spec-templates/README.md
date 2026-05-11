@@ -61,7 +61,7 @@ Every template follows the same structure:
 - **Acceptance criteria should be specific.** Avoid vague language like "should handle errors gracefully" — instead specify what happens for each error type.
 - **Include edge cases.** The Given/When/Then format makes it easy to enumerate scenarios. Cover: happy path, validation failures, auth failures, not found, concurrent access, and timeouts.
 - **Reference metrics.** Every spec should identify what PRISM events the feature emits. This feeds the DORA dashboard.
-- **Reference eval rubrics.** Point to the specific rubric files in `eval-harness/rubrics/` so the eval gate workflow knows what to check.
+- **Reference eval rubrics.** Point to the specific rubric files in `.prism/.prism/eval-harness/rubrics/` so the eval gate workflow knows what to check.
 
 ## Integration with PRISM Metrics
 

@@ -711,46 +711,6 @@ export class DashboardStack extends cdk.Stack {
 
     teamDashboard.addWidgets(
       new cloudwatch.GraphWidget({
-        title: 'Daily Token Usage (Input vs Output)',
-        left: [
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'BedrockTokensInput',
-            statistic: 'Sum',
-            period: cdk.Duration.days(1),
-            label: 'Input Tokens',
-          }),
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'BedrockTokensOutput',
-            statistic: 'Sum',
-            period: cdk.Duration.days(1),
-            label: 'Output Tokens',
-          }),
-        ],
-        width: 12,
-        height: 6,
-        leftYAxis: { min: 0, label: 'Tokens' },
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Cost per Commit Trend',
-        left: [
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'CostPerCommit',
-            statistic: 'Average',
-            period: cdk.Duration.days(1),
-            label: 'Avg Cost/Commit ($)',
-          }),
-        ],
-        width: 12,
-        height: 6,
-        leftYAxis: { min: 0, label: 'USD' },
-      }),
-    );
-
-    teamDashboard.addWidgets(
-      new cloudwatch.GraphWidget({
         title: 'Bedrock Cost (USD)',
         left: [
           new cloudwatch.Metric({
@@ -887,20 +847,6 @@ export class DashboardStack extends cdk.Stack {
           }),
         ],
         width: 4,
-        height: 4,
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: 'Validated Exploits (7d)',
-        metrics: [
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'PenTestExploitCount',
-            statistic: 'Sum',
-            period: cdk.Duration.days(7),
-            label: 'Exploits',
-          }),
-        ],
-        width: 6,
         height: 4,
       }),
     );
@@ -1091,20 +1037,6 @@ export class DashboardStack extends cdk.Stack {
         view: cloudwatch.GraphWidgetView.BAR,
       }),
       new cloudwatch.SingleValueWidget({
-        title: 'Cost per Deploy',
-        metrics: [
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'CostPerCommit',
-            statistic: 'Average',
-            period: cdk.Duration.days(7),
-            label: 'Avg $/Commit',
-          }),
-        ],
-        width: 6,
-        height: 6,
-      }),
-      new cloudwatch.SingleValueWidget({
         title: 'AI vs Human Defect Rate',
         metrics: [
           new cloudwatch.Metric({
@@ -1153,20 +1085,6 @@ export class DashboardStack extends cdk.Stack {
             statistic: 'Sum',
             period: cdk.Duration.days(30),
             label: 'Critical + High (30d)',
-          }),
-        ],
-        width: 6,
-        height: 4,
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: 'Validated Exploits',
-        metrics: [
-          new cloudwatch.Metric({
-            namespace: METRIC_NAMESPACE,
-            metricName: 'PenTestExploitCount',
-            statistic: 'Sum',
-            period: cdk.Duration.days(30),
-            label: 'Exploits (30d)',
           }),
         ],
         width: 6,
@@ -1333,21 +1251,6 @@ export class DashboardStack extends cdk.Stack {
       metric: new cloudwatch.Metric({
         namespace: METRIC_NAMESPACE,
         metricName: 'SecurityCriticalFindingCount',
-        statistic: 'Sum',
-        period: cdk.Duration.hours(1),
-      }),
-      threshold: 1,
-      evaluationPeriods: 1,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-    });
-
-    new cloudwatch.Alarm(this, 'PenTestExploitAlarm', {
-      alarmName: 'PRISM-D1-PenTestExploitDetected',
-      alarmDescription: 'Validated exploit detected by AWS Security Agent pen testing.',
-      metric: new cloudwatch.Metric({
-        namespace: METRIC_NAMESPACE,
-        metricName: 'PenTestExploitCount',
         statistic: 'Sum',
         period: cdk.Duration.hours(1),
       }),

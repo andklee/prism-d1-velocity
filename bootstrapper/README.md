@@ -8,7 +8,7 @@ Everything your team needs to adopt AI-native software development practices. In
 |---|---|
 | `claude-code/` | CLAUDE.md templates for backend, frontend, and platform teams |
 | `spec-templates/` | Kiro-compatible specification templates (API, data model, integration, agent workflow) |
-| `eval-harness/` | Amazon Bedrock Evaluation rubrics (5 rubrics) and runner script with `--spec` flag |
+| `.prism/eval-harness/` | Amazon Bedrock Evaluation rubrics (5 rubrics) and runner script with `--spec` flag |
 | `github-workflows/` | Reusable GitHub Actions for metric collection and eval gating |
 | `metric-hooks/` | Git hooks for automatic AI-origin tagging and local metric collection |
 | `aidlc-steering/` | AI-DLC development workflow rules for Claude Code, Kiro, and Q Developer (adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows)) |
@@ -22,11 +22,11 @@ Everything your team needs to adopt AI-native software development practices. In
 
 ```bash
 cd your-repo
-chmod +x /path/to/bootstrapper/metric-hooks/install.sh
-/path/to/bootstrapper/metric-hooks/install.sh --team-id your-team
+
+bash prism-cli bootstrapper install-git-hooks --team-id your-team
 ```
 
-This installs the `prepare-commit-msg`, `post-commit`, and `post-merge` hooks and creates the `.prism/` configuration directory. Every commit will now be tagged with AI-origin metadata.
+This installs the `prepare-commit-msg` hook and creates the `.prism/` configuration directory. Every commit will now be tagged with AI-origin metadata.
 
 ### Step 2: Choose a CLAUDE.md Template
 
@@ -59,11 +59,10 @@ Configure the required repository secret (`PRISM_METRICS_ROLE_ARN`). See `github
 ### Step 4: Configure Eval Harness
 
 ```bash
-cp -r /path/to/bootstrapper/eval-harness/ ./eval-harness/
-chmod +x eval-harness/run-eval.sh
+bash prism-cli bootstrapper install-eval-harness --with-rubrics
 ```
 
-Edit `eval-harness/eval-config.json` to set your pass threshold and AWS region.
+Edit `.prism/eval-harness/eval-config.json` to set your pass threshold and AWS region.
 
 ### Step 5: Deploy Metrics Infrastructure
 
@@ -114,11 +113,9 @@ aws cloudtrail get-event-selectors \
 ```
 
 **Without this step**, the following features will not work:
-- Token usage tracking (BedrockTokensInput / BedrockTokensOutput)
-- Cost per commit (CostPerCommit)
-- Token efficiency (TokenEfficiency)
-- Budget alarms (BedrockDailyCostHigh)
-- Cost Intelligence dashboard sections
+- AI token usage per PR (AIInputTokens / AIOutputTokens)
+- AI cost per PR (AICostUSD)
+- AI contribution dashboards
 
 **Note:** CloudTrail data events for Bedrock have a small cost (~$0.10 per 100,000 events). For a team of 20 engineers, this is typically < $5/month.
 
@@ -203,9 +200,7 @@ bootstrapper/
     README.md                            # Workflow setup guide
   metric-hooks/
     prepare-commit-msg                   # AI-origin trailer hook
-    post-commit                          # Commit metric emission hook
-    post-merge                           # Merge metric emission hook
-    install.sh                           # Hook installer
+    prepare-commit-msg                   # AI trailer hook
     config.json.template                 # Config template
     README.md                            # Hook installation guide
 ```

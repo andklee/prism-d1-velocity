@@ -144,4 +144,4 @@ Bedrock Evaluation should check:
 - **Testability**: Is there a mock/stub for local development and testing?
 - **Observability**: Are all calls logged with the required fields?
 
-Rubrics: `eval-harness/rubrics/code-quality.json`, `eval-harness/rubrics/security-compliance.json`
+Rubrics: `.prism/.prism/eval-harness/rubrics/code-quality.json`, `.prism/.prism/eval-harness/rubrics/security-compliance.json`

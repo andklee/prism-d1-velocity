@@ -184,7 +184,7 @@ mcp-servers/
 | Resource | Location |
 |---|---|
 | MCP server spec template | `spec-templates/mcp-server.md` |
-| Agent eval rubric | `eval-harness/rubrics/agent-quality.json` |
+| Agent eval rubric | `.prism/.prism/eval-harness/rubrics/agent-quality.json` |
 | AgentCore gateway config | `agent-configs/agentcore-gateway.json` |
 | Agent CLAUDE.md template | `claude-code/CLAUDE-agent.md` |
 | MCP specification | https://modelcontextprotocol.io/ |

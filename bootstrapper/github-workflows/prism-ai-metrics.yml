@@ -6,7 +6,7 @@
 #   - OIDC provider configured for GitHub Actions in your AWS account
 #   - IAM role with events:PutEvents on the prism-d1-metrics bus
 #   - Repository secret PRISM_METRICS_ROLE_ARN set to the OIDC role ARN
-#   - .prism/config.json committed to the repo (created by metric-hooks/install.sh)
+#   - .prism/config.json committed to the repo (created by: bash prism-cli bootstrapper install-git-hooks)
 
 name: PRISM AI Metrics
 

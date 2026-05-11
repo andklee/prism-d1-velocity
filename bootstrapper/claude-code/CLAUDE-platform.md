@@ -80,8 +80,8 @@ Any change that affects operational behavior MUST include a runbook update:
 
 AI-generated infrastructure code is evaluated against:
 
-- **Code Quality**: `eval-harness/rubrics/code-quality.json`
-- **Security Compliance**: `eval-harness/rubrics/security-compliance.json`
+- **Code Quality**: `.prism/.prism/eval-harness/rubrics/code-quality.json`
+- **Security Compliance**: `.prism/.prism/eval-harness/rubrics/security-compliance.json`
 
 Infrastructure code scoring below the configured threshold (default 0.82) MUST be revised before merging. Security rubric failures are hard blockers for platform repos.
 
@@ -115,14 +115,14 @@ This repo emits events to the `prism-d1-metrics` EventBridge bus:
 | `prism.d1.deploy` | Deployment to any environment |
 | `prism.d1.assessment` | Weekly DORA assessment |
 
-Ensure the metric hooks are installed (`metric-hooks/install.sh`) and GitHub workflows are configured.
+Ensure the metric hooks are installed (`bash prism-cli bootstrapper install-git-hooks`) and GitHub workflows are configured.
 
 ## Quick Reference
 
 | Item | Location |
 |---|---|
 | Spec templates | `spec-templates/` |
-| Eval rubrics | `eval-harness/rubrics/` |
+| Eval rubrics | `.prism/.prism/eval-harness/rubrics/` |
 | Git hooks | `metric-hooks/` |
 | CI workflows | `.github/workflows/prism-*.yml` |
 | PRISM config | `.prism/config.json` |

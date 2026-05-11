@@ -457,16 +457,18 @@ async function checkUtilities(verifyOnly = false) {
   }
 }
 
-async function checkCcusage(verifyOnly = false) {
-  heading('9. ccusage (Claude Code token tracker)');
+async function checkCodeburn(verifyOnly = false) {
+  heading('9. codeburn (AI code attribution tracker)');
 
-  if (commandExists('ccusage')) {
-    const { stdout } = run('ccusage --version');
-    pass(`ccusage installed (${stdout || 'version unknown'})`);
+  if (commandExists('codeburn')) {
+    const { stdout } = run('codeburn --version');
+    pass(`codeburn installed (${stdout || 'version unknown'})`);
   } else {
-    fail('ccusage not found', 'Run: npm install -g ccusage');
+    const isMac = process.platform === 'darwin';
+    const installCmd = isMac ? 'brew install codeburn' : 'npm install -g codeburn';
+    fail('codeburn not found', `Run: ${installCmd}`);
     if (!verifyOnly) {
-      await offerInstall('ccusage', 'npm install -g ccusage');
+      await offerInstall('codeburn', installCmd);
     }
   }
 }
@@ -532,7 +534,7 @@ async function verifySetup(opts: { skipAws?: boolean; skipKiro?: boolean; verify
   await checkNode(VERIFY_ONLY);
   await checkPython(VERIFY_ONLY);
   await checkUtilities(VERIFY_ONLY);
-  await checkCcusage(VERIFY_ONLY);
+  await checkCodeburn(VERIFY_ONLY);
   await checkSampleApp(VERIFY_ONLY);
 
   console.log('');

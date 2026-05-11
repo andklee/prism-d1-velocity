@@ -65,9 +65,9 @@ AI-Model: anthropic.claude-sonnet-4-20250514
 
 When generating or reviewing code, reference these eval rubrics:
 
-- **API Response Quality**: `eval-harness/rubrics/api-response-quality.json`
-- **Code Quality**: `eval-harness/rubrics/code-quality.json`
-- **Security Compliance**: `eval-harness/rubrics/security-compliance.json`
+- **API Response Quality**: `.prism/.prism/eval-harness/rubrics/api-response-quality.json`
+- **Code Quality**: `.prism/.prism/eval-harness/rubrics/code-quality.json`
+- **Security Compliance**: `.prism/.prism/eval-harness/rubrics/security-compliance.json`
 
 AI-generated code that scores below the configured threshold (default 0.82) in any rubric MUST be revised before merging.
 
@@ -99,14 +99,14 @@ This repo emits events to the `prism-d1-metrics` EventBridge bus. Key events:
 | `prism.d1.eval` | Bedrock Evaluation run |
 | `prism.d1.deploy` | Deployment to any environment |
 
-Ensure the metric hooks are installed (`metric-hooks/install.sh`) and GitHub workflows are configured.
+Ensure the metric hooks are installed (`bash prism-cli bootstrapper install-git-hooks`) and GitHub workflows are configured.
 
 ## Quick Reference
 
 | Item | Location |
 |---|---|
 | Spec templates | `spec-templates/` |
-| Eval rubrics | `eval-harness/rubrics/` |
+| Eval rubrics | `.prism/.prism/eval-harness/rubrics/` |
 | Git hooks | `metric-hooks/` |
 | CI workflows | `.github/workflows/prism-*.yml` |
 | PRISM config | `.prism/config.json` |

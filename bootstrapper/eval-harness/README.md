@@ -1,115 +1,114 @@
-# Bedrock Evaluation Harness
+# Eval Harness
 
-Run AI code evaluations using Amazon Bedrock and emit results as PRISM metrics.
+Evaluate AI-generated code against rubrics using Amazon Bedrock. Runs per-file, calculates weighted scores client-side, and integrates with the PRISM eval gate workflow.
 
-## Prerequisites
-
-- **AWS CLI v2** installed and configured with access to Bedrock.
-- **jq** installed (`brew install jq` on macOS, `sudo apt install jq` on Linux).
-- **Bedrock model access** enabled for `anthropic.claude-sonnet-4-20250514` in your target region.
-
-## Quick Start
+## Install
 
 ```bash
-# Make the script executable
-chmod +x run-eval.sh
+# Workshop mode — empty rubrics, create your own
+bash prism-cli bootstrapper install-eval-harness
 
-# Run an evaluation
-./run-eval.sh rubrics/code-quality.json path/to/your/code.ts
+# Production mode — includes all 5 rubrics
+bash prism-cli bootstrapper install-eval-harness --with-rubrics
+
+# Non-interactive
+bash prism-cli bootstrapper install-eval-harness --model us.anthropic.claude-haiku-4-5-20251001-v1:0 --threshold 0.82 --with-rubrics
 ```
+
+This installs into your repo:
+- `.prism/.prism/eval-harness/run-eval.sh` — evaluation script
+- `.prism/.prism/eval-harness/eval-config.json` — model, threshold, region
+- `.prism/.prism/eval-harness/rubrics/` — rubric JSON files
+- `.github/workflows/prism-eval-gate.yml` — CI workflow
+
+## Usage
+
+```bash
+# Evaluate a single file
+./.prism/.prism/eval-harness/run-eval.sh .prism/.prism/eval-harness/rubrics/code-quality.json src/handler.ts
+
+# With a spec file (for spec-compliance rubric)
+./.prism/.prism/eval-harness/run-eval.sh .prism/.prism/eval-harness/rubrics/spec-compliance.json src/api.ts --spec specs/api.md
+```
+
+### Output
+
+```
+correctness: 0.9 — Handles all inputs correctly including edge cases
+readability: 0.85 — Clear naming, minor style inconsistency in helper
+...
+
+Score: 0.8720
+Result: PASS
+Hallucinations: 0
+```
+
+Exit codes: `0` = pass, `1` = fail, `2` = error.
 
 ## Configuration
 
-Edit `eval-config.json` to customize:
+`eval-config.json`:
 
 | Field | Description | Default |
 |---|---|---|
 | `pass_threshold` | Minimum score to pass (0-1) | `0.82` |
-| `model_id` | Bedrock model for code generation | `anthropic.claude-sonnet-4-20250514` |
-| `eval_model_id` | Bedrock model for evaluation | `anthropic.claude-sonnet-4-20250514` |
-| `event_bus` | EventBridge bus name | `prism-d1-metrics` |
+| `eval_model_id` | Bedrock model for evaluation | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 | `aws_region` | AWS region | `us-west-2` |
-| `output_dir` | Local results directory | `.prism/eval-results` |
-| `emit_to_eventbridge` | Send events to EventBridge | `true` |
+| `event_bus` | EventBridge bus name | `prism-d1-metrics` |
+| `emit_to_eventbridge` | Emit events (workflow handles this) | `true` |
 
 ## Rubrics
 
-Three rubrics are included:
+Five production rubrics are available:
 
-| Rubric | Use For |
+| Rubric | Auto-selected when file path matches |
 |---|---|
-| `rubrics/api-response-quality.json` | API endpoint implementations |
-| `rubrics/code-quality.json` | General code quality |
-| `rubrics/security-compliance.json` | Security-sensitive code |
+| `code-quality.json` | Default fallback |
+| `api-response-quality.json` | `api`, `handler`, `route`, `controller` |
+| `agent-quality.json` | `agent`, `assistant`, `orchestrat`, `workflow`, `chain` |
+| `security-compliance.json` | `auth`, `security`, `guard`, `policy`, `iam`, `crypto` |
+| `spec-compliance.json` | Used when commit has `Spec-Ref:` trailer |
 
-### Rubric Structure
-
-Each rubric contains weighted criteria scored 1-5. The overall score is a weighted average normalized to 0-1. A score >= `pass_threshold` is a pass.
-
-### Creating Custom Rubrics
-
-Copy an existing rubric and modify:
-
-```bash
-cp rubrics/code-quality.json rubrics/my-custom-rubric.json
-# Edit criteria, weights, and scoring descriptions
-```
-
-## Usage
-
-### Basic
-
-```bash
-./run-eval.sh rubrics/code-quality.json src/handler.ts
-```
-
-### Evaluate a directory
-
-```bash
-./run-eval.sh rubrics/api-response-quality.json src/api/
-```
-
-### Custom config
-
-```bash
-./run-eval.sh rubrics/code-quality.json src/handler.ts --config my-config.json
-```
-
-## Output
-
-Results are saved to `.prism/eval-results/` as JSON files. Each result includes:
-
-- Overall score and pass/fail status
-- Per-criterion scores with reasoning
-- Timestamp and eval ID
-
-## EventBridge Events
-
-On completion, the harness emits a `prism.d1.eval` event to the configured EventBridge bus:
+### Creating a Custom Rubric
 
 ```json
 {
-  "source": "prism.d1.velocity",
-  "detail-type": "prism.d1.eval",
-  "detail": {
-    "team_id": "your-team",
-    "repo": "your-repo",
-    "metric": { "name": "eval_score", "value": 0.88, "unit": "score" },
-    "eval": { "rubric": "code-quality", "result": "PASS", "score": 0.88 }
-  }
+  "rubric_name": "my-rubric",
+  "criteria": [
+    {
+      "name": "criterion_name",
+      "weight": 0.30,
+      "description": "What this measures",
+      "scoring": "How to score 0.0-1.0"
+    }
+  ]
 }
 ```
 
-## Integration with CI
+Weights must sum to 1.0. The script calculates the weighted average client-side (does not trust the LLM to do math).
 
-The `prism-eval-gate.yml` GitHub workflow calls this script automatically on PRs. See `github-workflows/README.md` for setup.
+## CI Workflow
 
-## Troubleshooting
+The `prism-eval-gate.yml` workflow:
 
-| Issue | Solution |
-|---|---|
-| `aws: command not found` | Install AWS CLI v2 |
-| `jq: command not found` | Install jq |
-| Bedrock invocation failed | Verify model access is enabled in your region |
-| Score always 0 | Check that the Bedrock response is valid JSON |
-| EventBridge emit failed | Verify the `prism-d1-metrics` bus exists and IAM permissions allow `events:PutEvents` |
+1. Detects commits with `AI-Origin:` trailers
+2. Identifies changed source files from those commits
+3. Auto-selects a rubric per file based on path
+4. Runs `run-eval.sh` per file
+5. Posts a PR comment with per-file scores
+6. Waits for AWS Security Agent review (if installed)
+7. Emits `prism.d1.eval` event to EventBridge
+8. Fails the check if any file scores below threshold or Security Agent finds issues
+
+### Requirements
+
+- OIDC provider configured for GitHub Actions
+- IAM role with `bedrock:InvokeModel` + `events:PutEvents`
+- Repository secret `PRISM_METRICS_ROLE_ARN`
+- `.prism/config.json` with `team_id`
+
+## Uninstall
+
+```bash
+bash prism-cli bootstrapper install-eval-harness --uninstall
+```

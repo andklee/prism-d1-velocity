@@ -256,4 +256,4 @@ Bedrock Evaluation should check:
 - **Safety**: Did the agent respect all guardrails?
 - **Traceability**: Is the reasoning trace complete and coherent?
 
-Rubrics: `eval-harness/rubrics/agent-quality.json`, `eval-harness/rubrics/code-quality.json`, `eval-harness/rubrics/security-compliance.json`
+Rubrics: `.prism/.prism/eval-harness/rubrics/agent-quality.json`, `.prism/.prism/eval-harness/rubrics/code-quality.json`, `.prism/.prism/eval-harness/rubrics/security-compliance.json`
