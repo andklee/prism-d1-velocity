@@ -4,6 +4,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface SecurityAgentProps {
   /**
@@ -108,6 +109,29 @@ export class SecurityAgentConstruct extends Construct {
         ],
         resources: ['arn:aws:logs:*:*:log-group:/aws/securityagent/*'],
       }),
+    );
+
+    // cdk-nag suppressions for Security Agent role
+    NagSuppressions.addResourceSuppressions(
+      this.serviceRole,
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Security Agent service requires securityagent:* as individual actions are not yet documented in IAM service authorization reference',
+          appliesTo: ['Action::securityagent:*'],
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Agent space ID is generated at deploy time; wildcard required for the service role to operate on its own space',
+          appliesTo: [`Resource::arn:aws:securityagent:<AWS::Region>:<AWS::AccountId>:agent-space/*`],
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Security Agent creates log groups dynamically at /aws/securityagent/<space>/pt-<id>; wildcard required',
+          appliesTo: ['Resource::arn:aws:logs:*:*:log-group:/aws/securityagent/*'],
+        },
+      ],
+      true,
     );
 
     // If VPC config provided, grant network interface permissions
