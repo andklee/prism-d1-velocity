@@ -2,7 +2,7 @@
 
 > :warning: **Sample Project — Not Production-Ready**
 >
-> This project is provided as a sample and reference implementation only. It is not designed, tested, or hardened for production use. Use it as a starting point or learning resource, and perform your own security review, testing, and operational hardening before deploying to any production environment.
+> This project is provided as a sample and reference implementation only. It is not designed, tested, or hardened for production use. Use it as a starting point or learning resource, and perform your own security review, testing, and operational hardening before deploying to any production environment. See **[SECURITY.md](SECURITY.md)** for known gaps and production hardening guidance.
 
 > Compress the idea-to-production loop with disciplined AI adoption.
 
@@ -36,9 +36,9 @@ Part of the [PRISM Framework](../README.md) (Progressive Readiness Index for Sca
 
 - **Bedrock Guardrails** — content filters, PII protection, denied topics with per-trigger metrics
 - **MCP Authorization** — scope-based tool access control with audit trail
-- **Eval Gates** — 5 rubrics (code-quality, API, security, agent, spec-compliance) + SECURITY-09 (Security Agent findings)
+- **Eval Gates** — 5 rubrics (code-quality, API, security, agent, spec-compliance) + Security Agent finding gate
 - **KMS encryption** on all data stores, VPC isolation, exfiltration detection
-- **12 CloudWatch alarms** including security critical finding, pen test exploit, remediation SLA
+- **11 CloudWatch alarms** including security critical finding and remediation SLA
 
 ## Quick Start
 
@@ -73,11 +73,9 @@ npx cdk bootstrap   # First time only
 npx cdk deploy --all
 ```
 
-This deploys: EventBridge bus, 8 Lambda processors, DynamoDB tables (KMS-encrypted), 5 CloudWatch dashboards, 12 alarms, Bedrock Guardrails, model pricing table, identity mapping table.
+This deploys: EventBridge bus, 8 Lambda processors, DynamoDB tables (KMS-encrypted), 3 CloudWatch dashboards, 11 alarms, Bedrock Guardrails, model pricing table.
 
-> **For cost tracking:** Enable CloudTrail data events for Bedrock after deploying. See [Bootstrapper Step 6](bootstrapper/README.md#step-6-enable-cloudtrail-for-bedrock-required-for-cost-tracking). Without this, the Cost Intelligence dashboard sections will be empty.
-
-> **For Security Agent:** Add `--context enableSecurityAgent=true` if Security Agent is enabled in your account. See the [Security Agent Setup Guide](bootstrapper/security-agent/SETUP-GUIDE.md).
+> **For Security Agent:** Add `--context enableSecurityAgent=true` or use `bash prism-cli.sh securityagent setup`. See the [Security Agent Setup Guide](bootstrapper/security-agent/SETUP-GUIDE.md).
 
 ### Assess a Customer
 
@@ -122,7 +120,7 @@ For a CLI-only or fully manual workflow, run the [PRISM Assessment](assessment/R
 
 ### Run the Workshop
 
-Start with [Module 00: Prerequisites](workshop/00-prerequisites/README.md) and work through sequentially.
+The workshop is hosted on AWS Workshop Studio: [TBD — link coming soon](https://workshops.aws/)
 
 ### Run the Sample Agent (No AWS Required)
 
@@ -138,23 +136,30 @@ python scripts/run-demo.py --mock   # Run agent demo with mock model
 ### Adopt the Bootstrapper (Post-Workshop)
 
 ```bash
-cp -r bootstrapper/ ~/your-repo/.prism/
 cd ~/your-repo
 
-# Install hooks and workflows
-.prism/metric-hooks/install.sh
-cp .prism/github-workflows/*.yml .github/workflows/
-cp .prism/claude-code/CLAUDE.md ./CLAUDE.md
+# Install git hooks (creates .prism/ config directory)
+bash /path/to/prism-cli.sh bootstrapper install-git-hooks --team-id your-team
+
+# Choose a CLAUDE.md template for your team
+cp /path/to/bootstrapper/claude-code/CLAUDE-backend-api.md ./CLAUDE.md
+# Or: CLAUDE-frontend.md, CLAUDE-platform.md, CLAUDE-agent.md
+
+# Add GitHub workflows
+mkdir -p .github/workflows
+cp /path/to/bootstrapper/github-workflows/prism-ai-metrics.yml .github/workflows/
+cp /path/to/bootstrapper/github-workflows/prism-eval-gate.yml .github/workflows/
+cp /path/to/bootstrapper/github-workflows/prism-agent-eval.yml .github/workflows/
+cp /path/to/bootstrapper/github-workflows/prism-dora-weekly.yml .github/workflows/
+
+# Install eval harness
+bash /path/to/prism-cli.sh bootstrapper install-eval-harness --with-rubrics
 
 # For agent projects:
-cp .prism/agent-configs/ ./agent-configs/
-cp .prism/claude-code/CLAUDE-agent.md ./CLAUDE-agent.md
+cp /path/to/bootstrapper/agent-configs/ ./agent-configs/
 
 # For Security Agent:
-.prism/security-agent/setup.sh --api-url <url> --api-key <key> --team-id <team>
-
-# Configure your team ID
-echo 'PRISM_TEAM_ID=your-team-name' >> .env
+bash /path/to/prism-cli.sh securityagent setup
 ```
 
 ## Enhanced AI-DORA Metrics
@@ -176,13 +181,13 @@ echo 'PRISM_TEAM_ID=your-team-name' >> .env
 
 | # | Module | Duration | Key Outcome |
 |---|--------|----------|-------------|
-| 00 | [Prerequisites](workshop/00-prerequisites/) | 30 min | Environment ready, Bedrock access confirmed |
-| 01 | [AI-SDLC Foundations](workshop/01-ai-sdlc-foundations/) | 45 min | Claude Code configured, first AI-assisted commit |
-| 02 | [Agent Development](workshop/02-agent-development/) | 70 min | Strands agent + MCP server (with auth) + multi-agent orchestration |
-| 03 | [AI-Assisted Development](workshop/03-spec-driven-development/) | 45 min | Spec-driven development with Kiro, Claude Code IDE, or Claude Code CLI |
-| 04 | [Instrumenting AI Metrics](workshop/04-instrumenting-ai-metrics/) | 45 min | Git hooks + CI emitting 18 event types to EventBridge |
-| 05 | [Eval Gates in CI/CD](workshop/05-eval-gates-cicd/) | 45 min | 5 Bedrock eval rubrics + SECURITY-09 blocking bad merges |
-| 06 | [Dashboards & Visibility](workshop/06-dashboards-visibility/) | 30 min | 5 dashboards live (Team, Executive, CISO, 2 QuickSight) |
+| 00 | Prerequisites | 30 min | Environment ready, Bedrock access confirmed |
+| 01 | AI-SDLC Foundations | 45 min | Claude Code configured, first AI-assisted commit |
+| 02 | Agent Development | 70 min | Strands agent + MCP server (with auth) + multi-agent orchestration |
+| 03 | Spec-Driven Development | 45 min | Spec-driven development with Kiro, Claude Code IDE, or Claude Code CLI |
+| 04 | Instrumenting AI Metrics | 45 min | Git hooks + CI emitting 18 event types to EventBridge |
+| 05 | Eval Gates in CI/CD | 45 min | 5 Bedrock eval rubrics + Security Agent finding gate blocking bad merges |
+| 06 | Dashboards & Visibility | 30 min | 3 CloudWatch + 2 QuickSight dashboards live |
 
 Extension exercises: Security Agent design review (+10 min in Module 03), code review (+10 min in Module 05), CISO dashboard walkthrough (+5 min in Module 06).
 
@@ -211,10 +216,10 @@ Extension exercises: Security Agent design review (+10 min in Module 03), code r
 
 | Resource | Description |
 |----------|-------------|
-| **[Data Architecture & Dashboard Guide](docs/data-architecture.md)** | 9 data sources, 18 event types, 5 dashboards (widget-by-widget guide), 30+ CloudWatch metrics, 12 alarms |
+| **[Data Architecture & Dashboard Guide](docs/data-architecture.md)** | 9 data sources, 18 event types, 3 CloudWatch + 2 QuickSight dashboards (widget-by-widget guide), 30+ CloudWatch metrics, 11 alarms |
 | **[Competitive Landscape](docs/competitive-landscape.md)** | PRISM vs. Swarmia, Jellyfish, LinearB, DX, Faros AI — 9 differentiators |
 | **[Community Roadmap](docs/ROADMAP.md)** | Prioritized backlog across 9 phases |
-| **[Security Agent Setup Guide](bootstrapper/security-agent/SETUP-GUIDE.md)** | 10-step guide: console setup, domain verification, GitHub connection, webhook, identity mapping |
+| **[Security Agent Setup Guide](bootstrapper/security-agent/SETUP-GUIDE.md)** | 8-step guide: deploy, domain verification, GitHub connection, pen test config, webhook, GitHub variables, verification |
 | **[AI-DLC Steering Files](bootstrapper/aidlc-steering/)** | Development workflow rules adapted from [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows) |
 | **[ROI Model](docs/leader-guide/roi-model.md)** | Defensible ROI calculations for CFO conversations |
 

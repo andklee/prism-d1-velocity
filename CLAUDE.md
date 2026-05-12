@@ -23,7 +23,7 @@ It provides a workshop-style GitHub repo with bootstrapper code for AI-native so
 workshop/           — 7 instructor-led modules (00-06)
   02-agent-development/ — Agent dev with Strands SDK, MCP, AgentCore
 infra/              — AWS CDK stacks (metrics pipeline, dashboards, API)
-collector/          — Metric collection (GitHub webhooks, git hooks, CI emitters)
+docs/reference/                     — Reference implementations (not deployed)
 dashboards/         — Dashboard-as-code (CloudWatch JSON, QuickSight templates)
 bootstrapper/       — What teams inherit post-workshop (templates, hooks, workflows)
   agent-configs/    — AgentCore Runtime, Memory, Gateway templates

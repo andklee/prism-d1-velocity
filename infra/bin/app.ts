@@ -30,6 +30,7 @@ const apiStack = new ApiStack(app, 'PrismD1Api', {
   eventBus: pipelineStack.eventBus,
   eventsTable: pipelineStack.eventsTable,
   metadataTable: pipelineStack.metadataTable,
+  kmsKey: pipelineStack.kmsKey,
   tags: {
     Project: 'PRISM',
     Domain: 'D1-Velocity',

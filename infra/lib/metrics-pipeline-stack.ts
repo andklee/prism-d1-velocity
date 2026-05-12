@@ -18,6 +18,7 @@ export class MetricsPipelineStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;
   public readonly eventsTable: dynamodb.Table;
   public readonly metadataTable: dynamodb.Table;
+  public readonly kmsKey: kms.Key;
   public readonly guardrail: BedrockGuardrailConstruct;
   public readonly securityAgent?: SecurityAgentConstruct;
 
@@ -33,12 +34,25 @@ export class MetricsPipelineStack extends cdk.Stack {
       enableKeyRotation: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+    this.kmsKey = prismKmsKey;
 
     // Grant Security Agent service access to KMS key for agent space encryption
     prismKmsKey.grantEncryptDecrypt(new iam.ServicePrincipal('securityagent.amazonaws.com'));
-    // Grant CloudWatch Logs access to KMS key for Security Agent log groups
-    prismKmsKey.grant(new iam.ServicePrincipal('logs.amazonaws.com'),
-      'kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey*', 'kms:DescribeKey');
+    // Grant CloudWatch Logs access to KMS key for encrypted log groups
+    prismKmsKey.addToResourcePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      principals: [new iam.ServicePrincipal('logs.amazonaws.com')],
+      actions: ['kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey*', 'kms:DescribeKey'],
+      resources: ['*'],
+      conditions: {
+        ArnLike: {
+          'kms:EncryptionContext:aws:logs:arn': [
+            `arn:aws:logs:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:log-group:/aws/securityagent/*`,
+            `arn:aws:logs:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:log-group:/aws/apigateway/prism-d1-*`,
+          ],
+        },
+      },
+    }));
 
     // -------------------------------------------------------
     // EventBridge custom event bus
@@ -91,12 +105,19 @@ export class MetricsPipelineStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------
+    // VPC for Lambda isolation (Pillar 6)
+    // -------------------------------------------------------
+    const vpcConstruct = new PrismVpcConstruct(this, 'VPC');
+
+    // -------------------------------------------------------
     // Metrics processor Lambda
     // -------------------------------------------------------
     const metricsProcessor = new lambda.Function(this, 'MetricsProcessor', {
       functionName: 'prism-d1-metrics-processor',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'metrics-processor.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -215,20 +236,6 @@ export class MetricsPipelineStack extends cdk.Stack {
     }
 
     // -------------------------------------------------------
-    // VPC for Lambda isolation (Pillar 6)
-    // -------------------------------------------------------
-    const vpcConstruct = new PrismVpcConstruct(this, 'VPC');
-
-    // Attach VPC to all Lambdas for network isolation
-    const allLambdas = [metricsProcessor];
-    for (const fn of allLambdas) {
-      // Note: VPC attachment requires re-creating the Lambda. For existing stacks,
-      // apply this in a separate deployment to avoid downtime.
-      // fn.connections is not available post-creation, so VPC must be set at construction.
-      // The VPC construct is available for new Lambdas going forward.
-    }
-
-    // -------------------------------------------------------
     // Guardrail Enforcer Layer (Pillar 6)
     // -------------------------------------------------------
     const guardrailEnforcer = new GuardrailEnforcerConstruct(this, 'GuardrailEnforcer', {
@@ -246,6 +253,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-exfiltration-detector',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'exfiltration-detector.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -307,6 +316,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-defect-correlator',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'defect-correlator.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -367,6 +378,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-spec-to-code-calculator',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'spec-to-code-calculator.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -426,6 +439,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-security-agent-processor',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-agent-processor.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -473,6 +488,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-security-remediation-tracker',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-remediation-tracker.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -530,6 +547,8 @@ export class MetricsPipelineStack extends cdk.Stack {
       functionName: 'prism-d1-security-response-automator',
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'security-response-automator.handler',
+      vpc: vpcConstruct.vpc,
+      securityGroups: [vpcConstruct.lambdaSecurityGroup],
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
           image: lambda.Runtime.NODEJS_22_X.bundlingImage,
@@ -604,8 +623,22 @@ export class MetricsPipelineStack extends cdk.Stack {
     // CDK-nag suppressions
     // -------------------------------------------------------
     NagSuppressions.addStackSuppressions(this, [
-      { id: 'AwsSolutions-IAM4', reason: 'AWSLambdaBasicExecutionRole is required for Lambda CloudWatch Logs access' },
-      { id: 'AwsSolutions-IAM5', reason: 'CDK grant methods generate wildcard permissions scoped to specific resources' },
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'AWSLambdaBasicExecutionRole is required for Lambda CloudWatch Logs access',
+        appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'],
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CDK grantWriteData/grantReadData generates wildcard for DynamoDB GSI index ARNs (table/*/index/*)',
+        appliesTo: ['Resource::arn:<AWS::Partition>:dynamodb:<AWS::Region>:<AWS::AccountId>:table/prism-d1-events/index/*',
+                    'Resource::arn:<AWS::Partition>:dynamodb:<AWS::Region>:<AWS::AccountId>:table/prism-team-metadata/index/*'],
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CloudWatch PutMetricData does not support resource-level permissions',
+        appliesTo: ['Resource::*'],
+      },
       { id: 'AwsSolutions-L1', reason: 'All Lambdas use nodejs22.x which is the latest Node.js runtime available' },
     ]);
 

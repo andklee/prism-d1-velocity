@@ -4,28 +4,40 @@ Connects AWS Security Agent to the PRISM D1 metrics pipeline for proactive secur
 
 ## What It Does
 
-| Phase | Trigger | What Gets Scanned | PRISM Event |
+| Phase | Trigger | What Gets Scanned | How It Works |
 |---|---|---|---|
-| Design Review | Spec/design doc committed | Architecture decisions, data flows, auth design | `prism.d1.security.design_review` |
-| Code Review | PR opened/updated | Source code against org security policies | `prism.d1.security.code_review` |
-| Pen Testing | Deploy to staging | Running application (OWASP Top 10, business logic) | `prism.d1.security.pen_test` |
+| Design Review | Manual (web console) | Architecture decisions, data flows, auth design | Web-console-only — not automatable via CLI |
+| Code Review | PR opened/updated | Source code against org security policies | GitHub App posts inline review comments automatically |
+| Pen Testing | Manual or on deploy | Running application (OWASP Top 10, business logic) | CLI-automatable via `create-pentest` + `start-pentest-job` |
 
 Findings flow into the PRISM pipeline where they're:
-- Correlated with AI vs human code origin
-- Tracked for remediation time
+- Correlated with AI vs human code origin (via git trailer analysis)
+- Mapped to severity by CWE ID for dashboard reporting
 - Surfaced in Team, Executive, and CISO dashboards
-- Used to block eval gates when Critical/High findings are open (SECURITY-09)
+- Used to block the eval gate when **any** findings are present (count > 0)
 
 ## Setup
 
-**Full step-by-step guide:** [SETUP-GUIDE.md](SETUP-GUIDE.md) — covers console setup, domain verification, GitHub connection, security policies, webhook configuration, identity mapping, and end-to-end verification.
+### Option 1: CLI Command (Recommended)
 
-**Quick start** (after completing the console setup in the guide):
+Deploys the CDK stack with Security Agent enabled, creates the application, and attaches the IAM role:
 
 ```bash
-# From your project root
-chmod +x /path/to/bootstrapper/security-agent/setup.sh
+bash prism-cli.sh securityagent setup --profile your-profile --region us-west-2
+```
 
+This handles:
+1. `cdk deploy --all --context enableSecurityAgent=true`
+2. Creates a Security Agent application (or finds existing)
+3. Attaches the `prism-d1-security-agent-prism-d1-security` IAM role
+
+After running, open the web console link printed at the end to complete GitHub integration (OAuth handshake required).
+
+### Option 2: Setup Script
+
+For forwarding findings to the PRISM API independently:
+
+```bash
 /path/to/bootstrapper/security-agent/setup.sh \
   --api-url https://your-api.execute-api.us-west-2.amazonaws.com/v1 \
   --api-key your-prism-api-key \
@@ -34,26 +46,27 @@ chmod +x /path/to/bootstrapper/security-agent/setup.sh
 
 This creates `.prism/security-agent.json` with scan configuration.
 
-## GitHub Workflow
+**Full step-by-step guide:** [SETUP-GUIDE.md](SETUP-GUIDE.md) — covers console setup, domain verification, GitHub connection, security policies, and end-to-end verification.
 
-Copy the scan workflow to trigger Security Agent on spec changes, PRs, and deployments:
+## How Findings Are Collected
 
-```bash
-cp /path/to/bootstrapper/security-agent/prism-security-agent-scan.yml .github/workflows/
-```
+Code review findings are collected automatically by the **eval gate workflow** (`prism-eval-gate.yml`), which:
+1. Polls for Security Agent inline review comments on the PR
+2. Counts findings and blocks the gate if count > 0
+3. Forwards findings to EventBridge with CWE-based severity mapping
 
-Required GitHub configuration:
-- **Secret:** `PRISM_API_KEY` — your PRISM D1 API key
-- **Variable:** `PRISM_API_URL` — your PRISM D1 API Gateway URL
-- **Variable:** `PRISM_TEAM_ID` — your team identifier
-- **Variable:** `PRISM_AWS_ROLE_ARN` — OIDC role with Security Agent permissions
+No separate Security Agent workflow is needed. Pen tests are triggered manually via CLI.
 
-## API Endpoints
+## Eval Gate Integration
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/security-findings` | POST | Submit Security Agent findings to PRISM pipeline |
-| `/security-findings/{team_id}` | GET | Query findings for a team (default: last 7 days) |
+The eval gate (`prism-eval-gate.yml`) blocks PRs when Security Agent posts **any** inline review comments:
+
+1. Waits for Security Agent to post its "reviewing your pull request" comment
+2. Polls for completion (second issue comment or inline review comments)
+3. Counts inline review comments from `aws-security-agent[bot]`
+4. Fails the gate if count > 0
+
+The gate also forwards findings to EventBridge with CWE-based severity mapping for dashboard reporting.
 
 ## Dashboards
 
@@ -62,20 +75,10 @@ Security Agent data appears in:
 - **Executive Readout** → "Security & Compliance" section
 - **CISO Compliance** → dedicated dashboard with AI risk profile, shift-left, SLA tracking
 
-## Configuration
+## Important Limitations
 
-`.prism/security-agent.json` controls:
-
-```json
-{
-  "scan_config": {
-    "design_review": { "enabled": true, "trigger": "on_spec_commit" },
-    "code_review": { "enabled": true, "trigger": "on_pr" },
-    "pen_test": { "enabled": true, "trigger": "on_deploy_to_staging" }
-  },
-  "severity_thresholds": {
-    "block_merge": ["CRITICAL", "HIGH"],
-    "remediation_sla_hours": { "CRITICAL": 24, "HIGH": 72, "MEDIUM": 720 }
-  }
-}
-```
+- **Code reviews require a private repository** — public repos won't show the code review option
+- **GitHub integration requires web console OAuth** — cannot bypass with CLI tokens or PATs
+- **Design reviews are web-console-only** — not automatable via CLI or GitHub Actions
+- **Pen tests take hours** — not suitable for blocking CI pipelines
+- **Security Agent does NOT block merges directly** — it only posts comments; the eval gate workflow enforces blocking

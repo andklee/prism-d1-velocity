@@ -1,0 +1,85 @@
+# Security Hardening Guide
+
+This document lists known security gaps in the sample CDK infrastructure that should be addressed before production deployment.
+
+## Open Items
+
+### Medium Severity
+
+**1. No WAF on API Gateway**
+
+The API relies solely on API keys for access control. No protection against brute-force, credential stuffing, or volumetric attacks beyond the usage plan throttle (50 req/s).
+
+**Fix:** Attach a WAF WebACL with at minimum a rate-based rule (e.g., 1000 requests per 5 minutes per IP).
+
+---
+
+## Workflow & Data Pipeline Security
+
+### High Severity
+
+**2. Git trailer values are not validated or bounded**
+
+Any developer can write arbitrary values in commit trailers (`AI-Input-Tokens: 999999999`, `AI-Cost: $50000`). The `prism-ai-metrics.yml` workflow trusts these values and emits them directly to EventBridge. A malicious or compromised account could inflate metrics, trigger false alarms, or hide real costs.
+
+**Mitigation:** Add bounds checking in the workflow (cap tokens at 1M, cost at $100 per commit). Consider flagging outliers in the dashboard rather than blocking.
+
+---
+
+**3. EventBridge bus accepts events from any holder of the OIDC role**
+
+The `prism-d1-metrics` bus has no additional validation beyond IAM. If the OIDC role ARN leaks, arbitrary events can be emitted. The role is stored as a GitHub secret (not rotated automatically).
+
+**Mitigation:** Add a resource policy on the EventBridge bus restricting `events:PutEvents` to the specific OIDC role ARN. Consider adding a condition for GitHub Actions source IPs.
+
+---
+
+### Medium Severity
+
+**4. `prepare-commit-msg` hook is bypassable**
+
+Developers can skip with `--no-verify`, edit the hook file, or commit from machines without it installed. Trailer data is best-effort, not authoritative.
+
+**Accepted risk:** The system is designed for honest teams measuring their own productivity. Document this limitation for users.
+
+---
+
+**5. OIDC trust policy uses wildcard branch scope**
+
+The trust policy `sub` field is `repo:org/repo:*`, meaning any branch or workflow in the repo can assume the role. A contributor with write access could create a malicious workflow.
+
+**Mitigation:** Scope to `repo:org/repo:ref:refs/heads/main` or use environment-based OIDC conditions.
+
+---
+
+### Design Decisions (Accepted)
+
+- **Git trailers are developer-asserted metadata, not cryptographically verified.** The system is designed for internal teams measuring productivity, not adversarial environments.
+- **Token tracker files** (`.prism/tokentracker/`) are already in `.gitignore` — not committed to the repo.
+- **Pinned action SHAs** prevent supply-chain attacks via compromised actions.
+- **OIDC** eliminates long-lived AWS credentials in GitHub secrets.
+- **Hook always exits 0** — never blocks developer workflow on failure.
+
+---
+
+### Low Severity
+
+**2. DynamoDB `removalPolicy: RETAIN`**
+
+Good for data protection but means manual cleanup on stack deletion. Document this in runbooks.
+
+---
+
+## Resolved
+
+| Issue | Resolution | Date |
+|-------|-----------|------|
+| Security Agent role `securityagent:*` on `*` | Scoped to `agent-space/*` in account/region | 2026-05-12 |
+| KMS grant to `logs.amazonaws.com` unscoped | Added `ArnLike` condition for `/aws/securityagent/*` | 2026-05-12 |
+| API Gateway CORS `ALL_ORIGINS` | Removed entirely (server-to-server only) | 2026-05-12 |
+| `ec2:*NetworkInterface` on `resources: ['*']` | Scoped to specific subnet/SG/ENI ARNs | 2026-05-12 |
+| Security Agent log group wrong path | Changed from `/prism/security-agent/` to `/aws/securityagent/` | 2026-05-12 |
+| `NODEJS_24_X` runtime (doesn't exist) | Changed to `NODEJS_22_X` | 2026-05-12 |
+| Stack-level IAM5 suppression too broad | Replaced with resource-scoped `appliesTo` suppressions | 2026-05-12 |
+| VPC not attached to Lambdas | All 7 Lambdas now use `vpcConstruct.vpc` + security group | 2026-05-12 |
+| API Gateway access logs unencrypted | Added `encryptionKey: props.kmsKey` to access log group | 2026-05-12 |

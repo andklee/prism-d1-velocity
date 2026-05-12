@@ -41,7 +41,7 @@ Installed via `bootstrapper/metric-hooks/install.sh`. Fire automatically on ever
 
 ### 2. GitHub Webhooks
 
-The webhook handler at `collector/github-webhook-handler/index.ts` processes 5 event types with HMAC-SHA256 signature verification.
+The webhook handler at `docs/reference/github-webhook-handler/index.ts` processes 5 event types with HMAC-SHA256 signature verification.
 
 | GitHub Event | Event Type Emitted | Key Data Extracted |
 |-------------|-------------------|-------------------|
@@ -68,7 +68,7 @@ The webhook handler at `collector/github-webhook-handler/index.ts` processes 5 e
 
 ### 5. CI Metadata Emitter
 
-Shell script at `collector/ci-metadata-emitter/emit-metrics.sh` that runs inside GitHub Actions. Parses git log from base ref to HEAD, counts commits by AI origin, calculates AI-to-merge ratio, emits to EventBridge.
+The `bootstrapper/github-workflows/prism-ai-metrics.yml` workflow runs inside GitHub Actions. Parses git log from base ref to HEAD, counts commits by AI origin, calculates AI-to-merge ratio, emits to EventBridge.
 
 ---
 
@@ -574,9 +574,8 @@ Alarms: BedrockDailyCostHigh (>$100/day), TokenEfficiencyLow (>500 tokens/line)
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | Git hooks | `bootstrapper/metric-hooks/` | Local commit metadata capture + AI tool detection |
-| GitHub webhook handler | `collector/github-webhook-handler/index.ts` | Process push, PR, PR review, deploy, check_run events |
-| CI metric emitter | `collector/ci-metadata-emitter/emit-metrics.sh` | Shell script for GitHub Actions metric emission |
-| Commit analyzer | `collector/git-hooks/prism-commit-analyzer.ts` | Standalone commit analysis tool |
+| GitHub webhook handler | `docs/reference/github-webhook-handler/index.ts` | Reference implementation: process push, PR, PR review, deploy, check_run events |
+| CI metric emitter | `bootstrapper/github-workflows/prism-ai-metrics.yml` | GitHub Actions workflow for metric emission |
 | Metrics processor Lambda | `infra/lib/lambda/metrics-processor.ts` | EventBridge → DynamoDB + CloudWatch triple-write (all 14 event types) |
 | API handler Lambda | `infra/lib/lambda/api-handler.ts` | REST API for ingestion + queries |
 | Metrics pipeline stack | `infra/lib/metrics-pipeline-stack.ts` | EventBridge bus + DynamoDB tables + Lambda + constructs |

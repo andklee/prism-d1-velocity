@@ -81,12 +81,14 @@ export class SecurityAgentConstruct extends Construct {
       description: 'Service role for AWS Security Agent pen tests in PRISM D1',
     });
 
-    // Grant full Security Agent permissions (needed for CLI and web console)
+    // Grant Security Agent permissions scoped to this agent space
     this.serviceRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ['securityagent:*'],
-        resources: ['*'],
+        resources: [
+          `arn:aws:securityagent:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:agent-space/*`,
+        ],
       }),
     );
 
@@ -113,12 +115,19 @@ export class SecurityAgentConstruct extends Construct {
       this.serviceRole.addToPolicy(
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
-          actions: [
-            'ec2:CreateNetworkInterface',
-            'ec2:DescribeNetworkInterfaces',
-            'ec2:DeleteNetworkInterface',
-          ],
+          actions: ['ec2:DescribeNetworkInterfaces'],
           resources: ['*'],
+        }),
+      );
+      this.serviceRole.addToPolicy(
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ec2:CreateNetworkInterface', 'ec2:DeleteNetworkInterface'],
+          resources: [
+            `arn:aws:ec2:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:network-interface/*`,
+            ...props.vpcConfig.subnetIds.map(s => `arn:aws:ec2:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:subnet/${s}`),
+            ...props.vpcConfig.securityGroupIds.map(sg => `arn:aws:ec2:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:security-group/${sg}`),
+          ],
         }),
       );
     }
@@ -163,9 +172,9 @@ export class SecurityAgentConstruct extends Construct {
       (agentSpace as any).targetDomainIds = this.targetDomainIds;
     }
 
-    // Log group for pen test results
+    // Log group for pen test results (Security Agent writes to /aws/securityagent/<space>/pt-<id>)
     new logs.LogGroup(this, 'PentestLogGroup', {
-      logGroupName: `/prism/security-agent/${props.agentSpaceName}`,
+      logGroupName: `/aws/securityagent/${props.agentSpaceName}`,
       retention: logs.RetentionDays.SIX_MONTHS,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });

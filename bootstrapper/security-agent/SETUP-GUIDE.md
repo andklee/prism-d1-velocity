@@ -11,19 +11,15 @@ You need all of these before proceeding:
 | Requirement | How to Check | If Missing |
 |---|---|---|
 | AWS account with Security Agent access | `aws securityagent list-agent-spaces --region us-west-2` should not error | Request access via your AWS account team |
-| PRISM D1 CDK stack deployed | `aws cloudformation describe-stacks --stack-name PrismD1MetricsPipelineStack --query 'Stacks[0].StackStatus'` should return `CREATE_COMPLETE` or `UPDATE_COMPLETE` | Run `cd infra && npm install && npx cdk deploy --all` |
-| PRISM API URL | `aws cloudformation describe-stacks --stack-name PrismD1ApiStack --query 'Stacks[0].Outputs[?OutputKey==\`ApiUrl\`].OutputValue' --output text` | Deploy CDK stack first |
-| PRISM API key ID | `aws cloudformation describe-stacks --stack-name PrismD1ApiStack --query 'Stacks[0].Outputs[?OutputKey==\`ApiKeyId\`].OutputValue' --output text` | Deploy CDK stack first |
-| PRISM API key value | `aws apigateway get-api-key --api-key <key-id> --include-value --query 'value' --output text` | Deploy CDK stack first |
-| GitHub repository | You need a repo to connect for code review | Create one |
+| PRISM D1 CDK stack deployed | `aws cloudformation describe-stacks --stack-name PrismD1MetricsPipelineStack --query 'Stacks[0].StackStatus'` should return `CREATE_COMPLETE` or `UPDATE_COMPLETE` | Run `bash prism-cli.sh securityagent setup` |
+| GitHub repository (private) | Code review requires a private repo | Create one or make existing repo private |
 | Domain you own | For pen testing — you must prove ownership | Use a staging domain |
 | `jq` installed | `jq --version` | `brew install jq` or `apt install jq` |
-| `aws` CLI v2 | `aws --version` should show `aws-cli/2.x` | [Install AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) |
+| `aws` CLI v2 (latest) | `aws securityagent help` should not error | Install from [official installer](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) — do NOT use package managers |
 
 **Save these values — you'll need them throughout:**
 
 ```bash
-# Run these commands and save the output
 export PRISM_API_URL=$(aws cloudformation describe-stacks \
   --stack-name PrismD1ApiStack \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
@@ -49,52 +45,58 @@ echo "API Key:        ${PRISM_API_KEY:0:8}..."
 echo "Agent Space ID: ${AGENT_SPACE_ID}"
 ```
 
-If `AGENT_SPACE_ID` is empty, the CDK stack didn't create the Security Agent resources. Re-run `npx cdk deploy --all`.
+If `AGENT_SPACE_ID` is empty, run `bash prism-cli.sh securityagent setup` first.
 
 ---
 
-## Step 1: Verify Security Agent Is Working
+## Step 1: Deploy Security Agent Infrastructure
 
-**Where:** Terminal
+**Where:** Terminal, from the prism-d1-velocity repo root
+
+The CLI command handles CDK deployment, application creation, and role attachment in one step:
 
 ```bash
-# List your agent spaces
-aws securityagent list-agent-spaces --region us-west-2 --output table
-
-# You should see:
-# prism-d1-security | as-xxxxxxxxxxxx | ACTIVE
+bash prism-cli.sh securityagent setup --profile your-profile --region us-west-2
 ```
 
-**Expected output:** A table with at least one agent space named `prism-d1-security`.
+This:
+1. Runs `cdk deploy --all --context enableSecurityAgent=true`
+2. Creates a Security Agent application (or finds existing)
+3. Attaches the `prism-d1-security-agent-prism-d1-security` IAM role
+4. Prints the web console URL
 
-**If you see an error:**
+**Verify:**
+
+```bash
+aws securityagent list-agent-spaces --region us-west-2 --output table
+# Should show: prism-d1-security | as-xxxxxxxxxxxx | ACTIVE
+```
+
+**If you see errors:**
 - `UnrecognizedClientException` → Security Agent not enabled for your account
 - `AccessDeniedException` → Your IAM role needs `securityagent:*` permissions
-- Empty table → CDK stack needs to be deployed
-
-**Verify:** `echo "Step 1 OK: Agent Space ID = ${AGENT_SPACE_ID}"`
+- KMS 403 errors → The `securityagent.amazonaws.com` service principal needs `kms:Encrypt/Decrypt` on the KMS key. Also ensure `logs.amazonaws.com` has `kms:Encrypt/Decrypt/GenerateDataKey*/DescribeKey` with a Condition for the log group ARN pattern.
 
 ---
 
 ## Step 2: Register Your Domain for Pen Testing
 
-**Where:** Terminal (or AWS Console → Security Agent → Target Domains)
+**Where:** Terminal
+
+> **Skip this step** if you only need code review (domain is only required for pen testing).
 
 Pen testing requires proving you own the domain. Choose ONE method:
 
 ### Option A: DNS TXT Record (recommended)
 
 ```bash
-# Register the domain
 aws securityagent create-target-domain \
   --target-domain-name api.yourcompany.com \
   --verification-method DNS_TXT \
   --region us-west-2
-
-# The output includes a verification token. Copy it.
 ```
 
-Now add the DNS TXT record at your DNS provider:
+Add the DNS TXT record at your DNS provider:
 
 ```
 Type:   TXT
@@ -106,15 +108,12 @@ TTL:    300
 Wait 1-5 minutes for DNS propagation, then verify:
 
 ```bash
-# Check DNS propagation
 dig TXT _securityagent.api.yourcompany.com
 
-# Tell Security Agent to verify
 aws securityagent verify-target-domain \
   --target-domain-name api.yourcompany.com \
   --region us-west-2
 
-# Check status
 aws securityagent batch-get-target-domains \
   --target-domain-names api.yourcompany.com \
   --region us-west-2 \
@@ -126,64 +125,86 @@ aws securityagent batch-get-target-domains \
 ### Option B: HTTP Route
 
 ```bash
-# Register the domain
 aws securityagent create-target-domain \
   --target-domain-name api.yourcompany.com \
   --verification-method HTTP_ROUTE \
   --region us-west-2
 ```
 
-Host the verification file at:
+Host a verification endpoint at:
 `https://api.yourcompany.com/.well-known/security-agent-verification`
+
+> **⚠️ Critical:** The endpoint must return JSON in this exact format:
+> ```json
+> {"tokens": ["<your-verification-token>"]}
+> ```
+> Not `{"token": "..."}` or plain text — it must be `{"tokens": [...]}` with an array.
 
 Then verify:
 ```bash
 curl -s https://api.yourcompany.com/.well-known/security-agent-verification
-# Should return the verification content
+# Must return: {"tokens": ["<token>"]}
 
 aws securityagent verify-target-domain \
   --target-domain-name api.yourcompany.com \
   --region us-west-2
 ```
 
-**Skip this step if you only need design review and code review** (domain is only required for pen testing).
+### Associate Domain with Agent Space
+
+**⚠️ Required:** A verified domain is NOT automatically usable for pen tests. You must explicitly associate it:
+
+```bash
+# Get the domain ID
+DOMAIN_ID=$(aws securityagent batch-get-target-domains \
+  --target-domain-names api.yourcompany.com \
+  --region us-west-2 \
+  --query 'targetDomains[0].targetDomainId' --output text)
+
+# Associate with agent space
+aws securityagent update-agent-space \
+  --agent-space-id "${AGENT_SPACE_ID}" \
+  --target-domain-ids "${DOMAIN_ID}" \
+  --region us-west-2
+```
 
 ---
 
 ## Step 3: Connect GitHub for Code Review
 
-**Where:** AWS Console → Security Agent → Integrations
+**Where:** AWS Console (web browser) — OAuth handshake required
+
+> **⚠️ Important:** GitHub integration requires an OAuth authorization code from AWS's pre-registered GitHub OAuth App. You **cannot** bypass this with `gh` CLI tokens or PATs. The initial setup must be done via the web console.
 
 1. Open [Security Agent console](https://console.aws.amazon.com/securityagent)
 2. Click your agent space (`prism-d1-security`)
 3. Go to **Integrations** → **Add Integration**
 4. Select **GitHub**
-5. Authorize Security Agent to access your GitHub organization
-6. Select the repositories to monitor
+5. Complete the OAuth authorization flow (grants Security Agent access to your org)
+6. Select the repositories to monitor (must be **private** repos)
 7. Save
 
-**Or via CLI:**
+**After initial OAuth setup**, you can manage repos via CLI:
 
 ```bash
-aws securityagent create-integration \
-  --agent-space-id "${AGENT_SPACE_ID}" \
-  --integration-type GITHUB \
-  --region us-west-2
-# Follow the authorization URL in the output
-```
-
-**Verify:**
-
-```bash
+# List integrations
 aws securityagent list-integrations \
   --agent-space-id "${AGENT_SPACE_ID}" \
-  --region us-west-2 \
-  --output table
+  --region us-west-2 --output table
+
+# Add/remove repos from an existing integration
+aws securityagent update-integrated-resources \
+  --agent-space-id "${AGENT_SPACE_ID}" \
+  --integration-id <integration-id> \
+  --add-resources '["your-org/new-repo"]' \
+  --region us-west-2
 ```
 
 **Expected:** GitHub integration listed with status `ACTIVE`.
 
-After this, Security Agent automatically reviews every PR opened against the connected repositories.
+After this, Security Agent automatically reviews every PR opened against the connected repositories. It posts as `aws-security-agent[bot]` with inline review comments on specific lines.
+
+> **Note:** Code reviews only work on **private repositories**. Public repos will not show the code review option.
 
 ---
 
@@ -192,24 +213,17 @@ After this, Security Agent automatically reviews every PR opened against the con
 **Where:** Terminal
 
 ```bash
-# Get the service role ARN from CDK outputs
-SERVICE_ROLE_ARN=$(aws cloudformation describe-stacks \
-  --stack-name PrismD1MetricsPipelineStack \
-  --query 'Stacks[0].Outputs[?OutputKey==`SecurityAgentServiceRoleArnOutput`].OutputValue' \
-  --output text 2>/dev/null || echo "")
-
-# If the role ARN is empty, use the one from the SecurityAgent construct
-if [[ -z "${SERVICE_ROLE_ARN}" ]]; then
-  SERVICE_ROLE_ARN=$(aws iam list-roles \
-    --query "Roles[?contains(RoleName, 'security-agent')].Arn" \
-    --output text | head -1)
-fi
+# Get the service role ARN
+SERVICE_ROLE_ARN=$(aws iam list-roles \
+  --query "Roles[?contains(RoleName, 'security-agent')].Arn" \
+  --output text | head -1)
 
 echo "Service Role: ${SERVICE_ROLE_ARN}"
 
 # Create the pen test configuration
+# ⚠️ Title only allows: letters, numbers, hyphens, underscores. No spaces. Max 100 chars.
 PENTEST_RESULT=$(aws securityagent create-pentest \
-  --title "PRISM D1 - Application Pen Test" \
+  --title "PRISM-D1-Application-Pen-Test" \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --service-role "${SERVICE_ROLE_ARN}" \
   --assets '{
@@ -232,8 +246,7 @@ echo "Pen Test ID: ${PENTEST_ID}"
 ```bash
 aws securityagent list-pentests \
   --agent-space-id "${AGENT_SPACE_ID}" \
-  --region us-west-2 \
-  --output table
+  --region us-west-2 --output table
 ```
 
 ---
@@ -242,7 +255,7 @@ aws securityagent list-pentests \
 
 **Where:** AWS Console → Security Agent → Settings
 
-This tells Security Agent to send findings directly to your PRISM API.
+This tells Security Agent to send pen test findings directly to your PRISM API.
 
 1. In the Security Agent console, go to **Settings** → **Notifications** (or **Webhooks**)
 2. Click **Add Webhook**
@@ -250,20 +263,19 @@ This tells Security Agent to send findings directly to your PRISM API.
 
 | Field | Value |
 |---|---|
-| **URL** | `${PRISM_API_URL}/security-findings` (e.g., `https://abc123.execute-api.us-west-2.amazonaws.com/v1/security-findings`) |
+| **URL** | `${PRISM_API_URL}/security-findings` |
 | **Method** | POST |
 | **Header name** | `x-api-key` |
-| **Header value** | Your PRISM API key (the `${PRISM_API_KEY}` you saved earlier) |
+| **Header value** | Your PRISM API key |
 | **Events** | All finding types |
 | **Format** | JSON |
 
 4. Click **Test** → should return `200 OK`
 5. Save
 
-**Verify the webhook works:**
+**Verify:**
 
 ```bash
-# Send a test finding
 curl -s -w "\nHTTP Status: %{http_code}\n" \
   -X POST "${PRISM_API_URL}/security-findings" \
   -H "x-api-key: ${PRISM_API_KEY}" \
@@ -271,7 +283,7 @@ curl -s -w "\nHTTP Status: %{http_code}\n" \
   -d '{
     "findings": [{
       "finding_id": "test-001",
-      "type": "code_review",
+      "type": "pen_test",
       "severity": "LOW",
       "title": "Test finding - safe to ignore",
       "description": "Verifying webhook connectivity",
@@ -283,111 +295,32 @@ curl -s -w "\nHTTP Status: %{http_code}\n" \
   }'
 ```
 
-**Expected:** `HTTP Status: 200` and `{"message":"OK","findingsProcessed":1}`
+**Expected:** `HTTP Status: 200`
+
+> **Note:** This webhook is for pen test findings only. Code review findings are collected by the eval gate workflow directly from GitHub PR comments — they don't go through this webhook.
 
 ---
 
-## Step 6: Seed Developer Identity Mapping
-
-**Where:** Terminal
-
-PRISM attributes findings to developers by matching IAM principal ARNs to email addresses. Without this mapping, the "AI vs Human" attribution shows "unknown."
-
-**Find your team's IAM ARNs:**
-
-```bash
-# See who's been calling Bedrock
-aws cloudtrail lookup-events \
-  --lookup-attributes AttributeKey=EventSource,AttributeValue=bedrock.amazonaws.com \
-  --max-results 20 \
-  --region us-west-2 \
-  --query 'Events[].{User:Username,Time:EventTime}' \
-  --output table
-```
-
-**Add each developer:**
-
-```bash
-# Repeat for each team member
-aws dynamodb put-item \
-  --table-name prism-identity-mapping \
-  --region us-west-2 \
-  --item '{
-    "iam_principal": {"S": "arn:aws:sts::123456789012:assumed-role/DeveloperRole/jane@company.com"},
-    "developer_email": {"S": "jane@company.com"},
-    "team_id": {"S": "team-alpha"},
-    "display_name": {"S": "Jane Developer"}
-  }'
-```
-
-**For SSO/Identity Center users**, the principal is the assumed role ARN, not the user ARN. Check CloudTrail to see the exact format.
-
-**Verify:**
-
-```bash
-aws dynamodb scan \
-  --table-name prism-identity-mapping \
-  --region us-west-2 \
-  --query 'Items[].{Principal:iam_principal.S,Email:developer_email.S,Team:team_id.S}' \
-  --output table
-```
-
----
-
-## Step 7: Configure GitHub Repository Variables
+## Step 6: Configure GitHub Repository Variables
 
 **Where:** GitHub → your repo → Settings → Secrets and Variables → Actions
 
-The GitHub Actions workflow needs these values. Add them as **repository variables** (not secrets, except the API key):
-
 | Type | Name | Value | Where to Find It |
 |---|---|---|---|
-| **Secret** | `PRISM_API_KEY` | Your PRISM API key | Step "Before You Start" above |
+| **Secret** | `PRISM_API_KEY` | Your PRISM API key | "Before You Start" section |
 | Variable | `PRISM_API_URL` | `https://xxx.execute-api.us-west-2.amazonaws.com/v1` | CDK output `ApiUrl` |
 | Variable | `PRISM_TEAM_ID` | `team-alpha` (your team name) | Your choice |
-| Variable | `PRISM_AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/GitHubActionsRole` | Your OIDC role for GitHub Actions |
-| Variable | `PRISM_AGENT_SPACE_ID` | `as-xxxxxxxxxxxx` | Step 1 output (`${AGENT_SPACE_ID}`) |
-| Variable | `PRISM_PENTEST_ID` | `pt-xxxxxxxxxxxx` | Step 4 output (`${PENTEST_ID}`) |
+| Variable | `PRISM_AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/GitHubActionsRole` | Your OIDC role |
+| Variable | `PRISM_AGENT_SPACE_ID` | `as-xxxxxxxxxxxx` | Step 1 output |
+| Variable | `PRISM_PENTEST_ID` | `pt-xxxxxxxxxxxx` | Step 4 output |
 
 ---
 
-## Step 8: Install the GitHub Workflow
+## Step 7: Run the PRISM Setup Script (Optional)
 
 **Where:** Terminal, in your project repo
 
 ```bash
-# Copy the workflow into your repo
-mkdir -p .github/workflows
-cp /path/to/bootstrapper/security-agent/prism-security-agent-scan.yml .github/workflows/
-
-# Commit and push
-git add .github/workflows/prism-security-agent-scan.yml
-git commit -m "Add Security Agent scan workflow"
-git push
-```
-
-**What the workflow does automatically:**
-
-| Event | Trigger | What Happens |
-|---|---|---|
-| Push to `specs/**` or `docs/design/**` | Design review | 1. `add-artifact` uploads specs as context → 2. `start-pentest-job` runs analysis using spec context → 3. `list-findings` collects results → 4. Forward to PRISM API |
-| PR opened or updated | Code review | Security Agent GitHub integration reviews PR automatically → workflow collects findings via `list-findings` → forward to PRISM API |
-| Successful deployment | Pen test | `start-pentest-job` runs pen test against deployed app → poll until complete → `list-findings` → forward to PRISM API |
-| Manual dispatch | Any | Select scan type from GitHub Actions UI → runs the corresponding flow above |
-
-**Key concept:** Specs uploaded via `add-artifact` are **context**, not standalone scans. Security Agent uses them to understand your application's intent, then crafts targeted security analysis during pen test execution. This is why design review triggers a pen test job — the pen test engine is what performs the analysis.
-
-All findings are automatically forwarded to the PRISM API endpoint and appear in dashboards.
-
----
-
-## Step 9: Run the PRISM Setup Script
-
-**Where:** Terminal, in your project repo
-
-```bash
-chmod +x /path/to/bootstrapper/security-agent/setup.sh
-
 /path/to/bootstrapper/security-agent/setup.sh \
   --api-url "${PRISM_API_URL}" \
   --api-key "${PRISM_API_KEY}" \
@@ -395,73 +328,49 @@ chmod +x /path/to/bootstrapper/security-agent/setup.sh
   --region us-west-2
 ```
 
-This creates `.prism/security-agent.json` with:
-- Scan triggers (on_spec_commit, on_pr, on_deploy_to_staging)
-- Severity thresholds (CRITICAL/HIGH block merge)
-- Remediation SLAs (24h Critical, 72h High, 30d Medium)
+This creates `.prism/security-agent.json` with scan trigger configuration and remediation SLAs.
 
 ---
 
-## Step 10: Verify End-to-End
+## Step 8: Verify End-to-End
 
-Run through each flow to confirm everything is connected.
-
-### Test 1: Design Review
+### Test 1: Code Review
 
 ```bash
-# Create a test spec
-cat > specs/test-security-review.md << 'EOF'
-# Feature: User Login
-
-## Requirements
-1. Accept email and password via POST /auth/login
-2. Return JWT token on success
-
-## Design Constraints
-- Use bcrypt for password hashing
-EOF
-
-git add specs/test-security-review.md
-git commit -m "Add test spec for security review"
-git push
-```
-
-**What happens:**
-1. GitHub Actions triggers "PRISM Security Agent Scan" workflow
-2. Workflow uploads spec as context artifact (`add-artifact`)
-3. Workflow starts pen test job that uses spec context (`start-pentest-job`)
-4. Security Agent analyzes your design for security gaps (auth, data flow, rate limiting, etc.)
-5. Findings collected and forwarded to PRISM API
-6. Findings appear in Team Velocity → "Security Agent Findings" section
-
-**Check:** GitHub Actions tab shows workflow completed → PRISM dashboard shows design_review findings.
-
-### Test 2: Code Review
-
-```bash
-# Create a PR with code changes
 git checkout -b test-security-review
 echo "// test change" >> src/index.ts
 git add src/index.ts
-git commit -m "Test code for security review
-
-AI-Origin: claude-code"
+git commit -m "Test code for security review"
 git push -u origin test-security-review
-# Open a PR via GitHub
+# Open a PR via GitHub UI
 ```
 
-**Check:** Security Agent reviews the PR → findings appear as PR comments AND in PRISM dashboard.
+**What happens:**
+1. Security Agent GitHub App automatically reviews the PR
+2. Posts inline review comments on specific lines (as `aws-security-agent[bot]`)
+3. Eval gate workflow collects findings and blocks if count > 0
+4. Findings forwarded to EventBridge with CWE-based severity mapping
 
-### Test 3: Pen Test (manual)
+**Check:** PR has inline comments from `aws-security-agent[bot]` → eval gate status check shows findings count.
+
+### Test 2: Pen Test
+
+> **⚠️ Pen tests take several hours to complete.** This is not suitable for blocking CI pipelines.
 
 ```bash
-# Start a pen test job
+# Warm the verification Lambda (prevents cold start timeouts)
+for i in {1..3}; do
+  curl -s https://api.yourcompany.com/.well-known/security-agent-verification > /dev/null
+  sleep 2
+done
+
+# Start the pen test
 aws securityagent start-pentest-job \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --pentest-id "${PENTEST_ID}" \
   --region us-west-2
 
-# Monitor status
+# Monitor status (check periodically — takes hours)
 aws securityagent list-pentest-jobs-for-pentest \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --pentest-id "${PENTEST_ID}" \
@@ -470,107 +379,88 @@ aws securityagent list-pentest-jobs-for-pentest \
   --output table
 ```
 
-**Check:** Wait for `COMPLETED` status → findings forwarded to PRISM → visible in CISO Compliance dashboard.
+> **⚠️ Domain re-verification:** Security Agent re-verifies domain ownership at `start-pentest-job` time. If your verification endpoint is behind a Lambda, cold starts can cause timeout failures. Warm the Lambda with multiple requests before starting, and add retry logic.
 
-### Test 4: Dashboards
+**Check:** Wait for `COMPLETED` status → run `list-findings` with the job ID → findings visible in CISO Compliance dashboard.
 
-Open each dashboard and verify data:
+### Test 3: Dashboards
 
-| Dashboard | URL Pattern | What to Check |
-|---|---|---|
-| Team Velocity | `https://<region>.console.aws.amazon.com/cloudwatch/home#dashboards:name=PRISM-D1-Team-Velocity` | "Security Agent Findings" section has data |
-| CISO Compliance | `https://<region>.console.aws.amazon.com/cloudwatch/home#dashboards:name=PRISM-D1-CISO-Compliance` | Security posture + AI risk profile populated |
-| Alarms | `https://<region>.console.aws.amazon.com/cloudwatch/home#alarmsV2:` | `SecurityCriticalFinding` alarm in OK state |
+| Dashboard | What to Check |
+|---|---|
+| Team Velocity | "Security Agent Findings" section has data |
+| CISO Compliance | Security posture + AI risk profile populated |
+| Alarms | `SecurityCriticalFinding` alarm in OK state |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Check | Fix |
+| Problem | Likely Cause | Fix |
 |---|---|---|
-| `aws securityagent` command not found | `aws --version` | Upgrade to AWS CLI v2.x |
-| Agent space not found | `aws securityagent list-agent-spaces` | Re-deploy CDK: `npx cdk deploy --all` |
-| Domain verification stuck | `dig TXT _securityagent.yourdomain.com` | Wait 5 min for DNS propagation; check record is exact |
-| No findings in PRISM | Check `security-agent-processor` Lambda logs | Verify webhook URL and API key match |
-| Code review not triggering | Check Security Agent console → Integrations | Re-authorize GitHub connection |
-| Identity shows "unknown" | `aws dynamodb scan --table-name prism-identity-mapping` | Add missing IAM principal mappings |
-| Eval gate not blocking | Check `security-compliance.json` has `security_agent_findings` criterion | Verify `security-response-automator` Lambda wrote penalty record |
-| Pen test fails to start | Check IAM service role permissions | Ensure role has `securityagent:StartPentest` permission |
-| Workflow fails on push | Check GitHub Actions logs | Verify all 6 repository variables are set |
+| `aws securityagent` command not found | AWS CLI too old | Install from [official installer](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) — not package managers |
+| Agent space not found | CDK not deployed with Security Agent | Run `bash prism-cli.sh securityagent setup` |
+| KMS 403 on agent space creation | `securityagent.amazonaws.com` lacks KMS grants | Add `kms:Encrypt/Decrypt` grant for the service principal |
+| Pen test fails at PREFLIGHT | `logs.amazonaws.com` lacks KMS permissions | Grant `kms:Encrypt/Decrypt/GenerateDataKey*/DescribeKey` with log group ARN condition |
+| Domain verification stuck (DNS) | DNS not propagated | Wait 5 min; verify with `dig TXT _securityagent.yourdomain.com` |
+| Domain verification stuck (HTTP) | Wrong JSON format | Must return `{"tokens": ["<token>"]}` — not `{"token": "..."}` |
+| `create-pentest` title rejected | Invalid characters | Only letters, numbers, hyphens, underscores. No spaces. Max 100 chars |
+| Pen test start times out | Domain re-verification + Lambda cold start | Warm the verification Lambda first; add retry logic |
+| Code review not triggering | Repo is public or not connected | Must be private; re-authorize via web console OAuth |
+| GitHub integration CLI fails | OAuth not completed | Initial setup requires web console; CLI only works after OAuth |
+| No findings in PRISM dashboards | Webhook misconfigured or eval gate not collecting | Check Lambda logs; verify GitHub variables are set |
+| Eval gate not blocking | Security Agent hasn't posted yet | Gate polls for up to 10 min; check if bot posted comments |
+| Pen test log group missing | IAM path wrong | Logs go to `/aws/securityagent/<space-name>/pt-<id>`, not `/prism/security-agent/*` |
 
 ---
 
 ## Quick Reference: All Commands
 
 ```bash
+# Deploy Security Agent (recommended first step)
+bash prism-cli.sh securityagent setup --profile your-profile --region us-west-2
+
 # List agent spaces
 aws securityagent list-agent-spaces --region us-west-2
 
-# Upload a spec as context (Security Agent uses this during pen tests)
+# Register and verify a domain
+aws securityagent create-target-domain \
+  --target-domain-name api.example.com \
+  --verification-method DNS_TXT --region us-west-2
+aws securityagent verify-target-domain \
+  --target-domain-name api.example.com --region us-west-2
+
+# Associate domain with agent space (required before pen test)
+aws securityagent update-agent-space \
+  --agent-space-id "${AGENT_SPACE_ID}" \
+  --target-domain-ids "<domain-id>" --region us-west-2
+
+# Upload spec as context for pen tests
 aws securityagent add-artifact \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --artifact-content fileb://specs/my-spec.md \
-  --artifact-type MD --file-name my-spec.md
-
-# List uploaded artifacts
-aws securityagent list-artifacts \
-  --agent-space-id "${AGENT_SPACE_ID}"
+  --artifact-type MD --file-name my-spec.md --region us-west-2
 
 # Start a pen test
 aws securityagent start-pentest-job \
   --agent-space-id "${AGENT_SPACE_ID}" \
-  --pentest-id "${PENTEST_ID}"
+  --pentest-id "${PENTEST_ID}" --region us-west-2
 
 # Check pen test status
 aws securityagent list-pentest-jobs-for-pentest \
   --agent-space-id "${AGENT_SPACE_ID}" \
   --pentest-id "${PENTEST_ID}" \
-  --query 'pentestJobSummaries[0].status'
+  --query 'pentestJobSummaries[0].status' --region us-west-2
 
-# Get findings from a pen test job
+# Get findings from a pen test job (only works for pen tests, not code reviews)
 aws securityagent list-findings \
   --agent-space-id "${AGENT_SPACE_ID}" \
-  --pentest-job-id <job-id>
+  --pentest-job-id <job-id> --region us-west-2
 
-# List all findings in batch
-aws securityagent batch-get-findings \
+# Manage GitHub integration repos (after initial OAuth via console)
+aws securityagent list-integrations \
+  --agent-space-id "${AGENT_SPACE_ID}" --region us-west-2
+aws securityagent update-integrated-resources \
   --agent-space-id "${AGENT_SPACE_ID}" \
-  --finding-ids <id1> <id2>
-
-# Register a target domain
-aws securityagent create-target-domain \
-  --target-domain-name api.example.com \
-  --verification-method DNS_TXT
-
-# Verify a domain
-aws securityagent verify-target-domain \
-  --target-domain-name api.example.com
-
-# Forward findings to PRISM
-curl -X POST "${PRISM_API_URL}/security-findings" \
-  -H "x-api-key: ${PRISM_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{"findings":[...]}'
-
-# Query PRISM for findings
-curl -s "${PRISM_API_URL}/security-findings/team-alpha?hours=168" \
-  -H "x-api-key: ${PRISM_API_KEY}" | jq '.count'
+  --integration-id <id> \
+  --add-resources '["org/repo"]' --region us-west-2
 ```
-
----
-
-## What Gets Created (Summary)
-
-| Resource | How | Purpose |
-|---|---|---|
-| Agent Space (`prism-d1-security`) | CDK auto-deploys | Security Agent scope + KMS encryption |
-| IAM Service Role | CDK auto-deploys | Pen test execution permissions |
-| CloudWatch Log Group | CDK auto-deploys | Pen test result logging (6-month retention) |
-| Target Domain | Step 2 (manual or CDK) | Pen test scope with ownership proof |
-| GitHub Integration | Step 3 (console) | Automated code review on PRs |
-| Pen Test Config | Step 4 (CLI) | Reusable pen test definition |
-| Webhook | Step 5 (console) | Findings → PRISM API |
-| Identity Mapping | Step 6 (CLI) | IAM → developer attribution |
-| GitHub Variables (6) | Step 7 (GitHub UI) | Workflow configuration |
-| GitHub Workflow | Step 8 (git commit) | Automated scan triggers |
-| `.prism/security-agent.json` | Step 9 (setup script) | Local config + SLA thresholds |

@@ -9,10 +9,13 @@ import * as path from 'path';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 
+import * as kms from 'aws-cdk-lib/aws-kms';
+
 export interface ApiStackProps extends cdk.StackProps {
   eventBus: events.EventBus;
   eventsTable: dynamodb.Table;
   metadataTable: dynamodb.Table;
+  kmsKey: kms.IKey;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -42,11 +45,11 @@ export class ApiStack extends cdk.Stack {
     // -------------------------------------------------------
     const apiHandler = new lambda.Function(this, 'ApiHandler', {
       functionName: 'prism-d1-api-handler',
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'api-handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'lambda'), {
         bundling: {
-          image: lambda.Runtime.NODEJS_24_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
             [
@@ -97,6 +100,7 @@ export class ApiStack extends cdk.Stack {
     const accessLogGroup = new logs.LogGroup(this, 'ApiAccessLogs', {
       logGroupName: '/aws/apigateway/prism-d1-api-access',
       retention: logs.RetentionDays.ONE_MONTH,
+      encryptionKey: props.kmsKey,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -128,15 +132,6 @@ export class ApiStack extends cdk.Stack {
           status: true,
           user: true,
         }),
-      },
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
-        allowHeaders: [
-          'Content-Type',
-          'X-Api-Key',
-          'Authorization',
-        ],
       },
     });
 
@@ -242,7 +237,6 @@ export class ApiStack extends cdk.Stack {
     // cdk-nag suppressions
     // -------------------------------------------------------
 
-    // CORS ALL_ORIGINS is intentional for this internal metrics API
     NagSuppressions.addResourceSuppressions(
       this.api,
       [
