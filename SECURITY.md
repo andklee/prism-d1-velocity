@@ -1,10 +1,12 @@
 # Security Hardening Guide
 
-This document lists known security gaps in the sample CDK infrastructure that should be addressed before production deployment.
+This document lists known security gaps organized by component. Address before production deployment.
 
-## Open Items
+---
 
-### Medium Severity
+## Infra CDK Security
+
+### Open — Medium
 
 **1. No WAF on API Gateway**
 
@@ -14,11 +16,17 @@ The API relies solely on API keys for access control. No protection against brut
 
 ---
 
+**2. DynamoDB `removalPolicy: RETAIN`**
+
+Good for data protection but means manual cleanup on stack deletion. Document this in runbooks.
+
+---
+
 ## Workflow & Data Pipeline Security
 
-### High Severity
+### Open — High
 
-**2. Git trailer values are not validated or bounded**
+**3. Git trailer values are not validated or bounded**
 
 Any developer can write arbitrary values in commit trailers (`AI-Input-Tokens: 999999999`, `AI-Cost: $50000`). The `prism-ai-metrics.yml` workflow trusts these values and emits them directly to EventBridge. A malicious or compromised account could inflate metrics, trigger false alarms, or hide real costs.
 
@@ -26,7 +34,7 @@ Any developer can write arbitrary values in commit trailers (`AI-Input-Tokens: 9
 
 ---
 
-**3. EventBridge bus accepts events from any holder of the OIDC role**
+**4. EventBridge bus accepts events from any holder of the OIDC role**
 
 The `prism-d1-metrics` bus has no additional validation beyond IAM. If the OIDC role ARN leaks, arbitrary events can be emitted. The role is stored as a GitHub secret (not rotated automatically).
 
@@ -34,9 +42,9 @@ The `prism-d1-metrics` bus has no additional validation beyond IAM. If the OIDC 
 
 ---
 
-### Medium Severity
+### Open — Medium
 
-**4. `prepare-commit-msg` hook is bypassable**
+**5. `prepare-commit-msg` hook is bypassable**
 
 Developers can skip with `--no-verify`, edit the hook file, or commit from machines without it installed. Trailer data is best-effort, not authoritative.
 
@@ -44,7 +52,7 @@ Developers can skip with `--no-verify`, edit the hook file, or commit from machi
 
 ---
 
-**5. OIDC trust policy uses wildcard branch scope**
+**6. OIDC trust policy uses wildcard branch scope**
 
 The trust policy `sub` field is `repo:org/repo:*`, meaning any branch or workflow in the repo can assume the role. A contributor with write access could create a malicious workflow.
 
@@ -52,21 +60,13 @@ The trust policy `sub` field is `repo:org/repo:*`, meaning any branch or workflo
 
 ---
 
-### Design Decisions (Accepted)
+## Design Decisions (Accepted)
 
 - **Git trailers are developer-asserted metadata, not cryptographically verified.** The system is designed for internal teams measuring productivity, not adversarial environments.
 - **Token tracker files** (`.prism/tokentracker/`) are already in `.gitignore` — not committed to the repo.
 - **Pinned action SHAs** prevent supply-chain attacks via compromised actions.
 - **OIDC** eliminates long-lived AWS credentials in GitHub secrets.
 - **Hook always exits 0** — never blocks developer workflow on failure.
-
----
-
-### Low Severity
-
-**2. DynamoDB `removalPolicy: RETAIN`**
-
-Good for data protection but means manual cleanup on stack deletion. Document this in runbooks.
 
 ---
 
