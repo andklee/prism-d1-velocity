@@ -651,6 +651,11 @@ export class MetricsPipelineStack extends cdk.Stack {
         appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'],
       },
       {
+        id: 'AwsSolutions-IAM4',
+        reason: 'AWSLambdaVPCAccessExecutionRole is required for VPC-attached Lambdas to manage ENIs',
+        appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole'],
+      },
+      {
         id: 'AwsSolutions-IAM5',
         reason: 'CDK grantWriteData/grantReadData generates wildcard for DynamoDB GSI index ARNs (table/*/index/*)',
         appliesTo: ['Resource::arn:<AWS::Partition>:dynamodb:<AWS::Region>:<AWS::AccountId>:table/prism-d1-events/index/*',
@@ -660,6 +665,16 @@ export class MetricsPipelineStack extends cdk.Stack {
         id: 'AwsSolutions-IAM5',
         reason: 'CloudWatch PutMetricData does not support resource-level permissions',
         appliesTo: ['Resource::*'],
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CDK KMS grant generates kms:GenerateDataKey* and kms:ReEncrypt* wildcard actions which are required for envelope encryption',
+        appliesTo: ['Action::kms:GenerateDataKey*', 'Action::kms:ReEncrypt*'],
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CDK grantReadData on DynamoDB generates wildcard for GSI index ARNs via token reference',
+        appliesTo: ['Resource::<EventsTableD24865E5.Arn>/index/*'],
       },
       { id: 'AwsSolutions-L1', reason: 'All Lambdas use nodejs22.x which is the latest Node.js runtime available' },
     ]);

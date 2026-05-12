@@ -323,6 +323,10 @@ export class ApiStack extends cdk.Stack {
           'This is a CDK-internal construct.',
         appliesTo: ['Resource::*'],
       },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'Lambda uses nodejs22.x which is the latest Node.js runtime available in CDK',
+      },
     ]);
 
     // -------------------------------------------------------
