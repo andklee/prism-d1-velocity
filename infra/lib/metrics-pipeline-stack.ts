@@ -62,6 +62,28 @@ export class MetricsPipelineStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------
+    // EventBridge resource policy — restrict PutEvents callers
+    // -------------------------------------------------------
+    new events.CfnEventBusPolicy(this, 'PrismBusPolicy', {
+      eventBusName: this.eventBus.eventBusName,
+      statementId: 'AllowOnlyPrismCallers',
+      statement: {
+        Effect: 'Allow',
+        Principal: { AWS: cdk.Aws.ACCOUNT_ID },
+        Action: 'events:PutEvents',
+        Resource: this.eventBus.eventBusArn,
+        Condition: {
+          ArnLike: {
+            'aws:PrincipalArn': [
+              `arn:aws:iam::${cdk.Aws.ACCOUNT_ID}:role/prism-d1-github-oidc-*`,
+              `arn:aws:iam::${cdk.Aws.ACCOUNT_ID}:role/${this.stackName}-*`,
+            ],
+          },
+        },
+      },
+    });
+
+    // -------------------------------------------------------
     // DynamoDB events table — KMS encrypted
     // -------------------------------------------------------
     this.eventsTable = new dynamodb.Table(this, 'EventsTable', {

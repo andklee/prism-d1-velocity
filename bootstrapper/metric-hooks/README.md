@@ -70,11 +70,25 @@ The installer creates `.prism/config.json`:
 
 ```json
 {
-  "team_id": "your-team"
+  "team_id": "your-team",
+  "max_tokens": 1000000,
+  "max_cost": 100
 }
 ```
 
-This is read by the GitHub workflow to attribute metrics to your team.
+| Field | Description | Default |
+|-------|-------------|---------|
+| `team_id` | Team identifier for metric attribution | *(required)* |
+| `max_tokens` | Max input/output tokens per commit (capped at this value) | `1000000` |
+| `max_cost` | Max cost in USD per commit (capped at this value) | `100` |
+
+Set custom bounds at install time:
+
+```bash
+bash prism-cli.sh bootstrapper install-git-hooks --team-id my-team --max-tokens 500000 --max-cost 50
+```
+
+Values exceeding bounds are clamped to the configured maximum. The workflow (`prism-ai-metrics.yml`) applies a second layer of enforcement, discarding values above 1M tokens / $100 to zero.
 
 ## Safety
 

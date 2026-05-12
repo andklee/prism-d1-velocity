@@ -24,24 +24,6 @@ Good for data protection but means manual cleanup on stack deletion. Document th
 
 ## Workflow & Data Pipeline Security
 
-### Open — High
-
-**3. Git trailer values are not validated or bounded**
-
-Any developer can write arbitrary values in commit trailers (`AI-Input-Tokens: 999999999`, `AI-Cost: $50000`). The `prism-ai-metrics.yml` workflow trusts these values and emits them directly to EventBridge. A malicious or compromised account could inflate metrics, trigger false alarms, or hide real costs.
-
-**Mitigation:** Add bounds checking in the workflow (cap tokens at 1M, cost at $100 per commit). Consider flagging outliers in the dashboard rather than blocking.
-
----
-
-**4. EventBridge bus accepts events from any holder of the OIDC role**
-
-The `prism-d1-metrics` bus has no additional validation beyond IAM. If the OIDC role ARN leaks, arbitrary events can be emitted. The role is stored as a GitHub secret (not rotated automatically).
-
-**Mitigation:** Add a resource policy on the EventBridge bus restricting `events:PutEvents` to the specific OIDC role ARN. Consider adding a condition for GitHub Actions source IPs.
-
----
-
 ### Open — Medium
 
 **5. `prepare-commit-msg` hook is bypassable**
@@ -81,5 +63,7 @@ The trust policy `sub` field is `repo:org/repo:*`, meaning any branch or workflo
 | Security Agent log group wrong path | Changed from `/prism/security-agent/` to `/aws/securityagent/` | 2026-05-12 |
 | `NODEJS_24_X` runtime (doesn't exist) | Changed to `NODEJS_22_X` | 2026-05-12 |
 | Stack-level IAM5 suppression too broad | Replaced with resource-scoped `appliesTo` suppressions | 2026-05-12 |
+| EventBridge bus no resource policy | Added `CfnEventBusPolicy` restricting PutEvents to OIDC role + stack Lambdas | 2026-05-12 |
 | VPC not attached to Lambdas | All 7 Lambdas now use `vpcConstruct.vpc` + security group | 2026-05-12 |
+| Git trailer values unbounded | Clamped in hook (cap to max) + workflow (discard to 0). Tokens ≤ 1M, cost ≤ $100 | 2026-05-12 |
 | API Gateway access logs unencrypted | Added `encryptionKey: props.kmsKey` to access log group | 2026-05-12 |

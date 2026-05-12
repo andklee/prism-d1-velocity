@@ -141,6 +141,9 @@ cd ~/your-repo
 # Install git hooks (creates .prism/ config directory)
 bash /path/to/prism-cli.sh bootstrapper install-git-hooks --team-id your-team
 
+# Optional: set custom token/cost bounds (defaults: 1M tokens, $100/commit)
+bash /path/to/prism-cli.sh bootstrapper install-git-hooks --team-id your-team --max-tokens 500000 --max-cost 50
+
 # Choose a CLAUDE.md template for your team
 cp /path/to/bootstrapper/claude-code/CLAUDE-backend-api.md ./CLAUDE.md
 # Or: CLAUDE-frontend.md, CLAUDE-platform.md, CLAUDE-agent.md

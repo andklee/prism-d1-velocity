@@ -74,10 +74,13 @@ jobs:
               HUMAN_ONLY=$((HUMAN_ONLY + 1))
             fi
 
-            # Accumulate token usage trailers
+            # Accumulate token usage trailers (clamped to prevent injection)
             INPUT_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Input-Tokens: )\d+' || echo "0")
             OUTPUT_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Output-Tokens: )\d+' || echo "0")
             COST_T=$(echo "${MSG}" | grep -oP '(?<=^AI-Cost: )[0-9.]+' || echo "0")
+            [[ ${INPUT_T} -gt 1000000 ]] && INPUT_T=0
+            [[ ${OUTPUT_T} -gt 1000000 ]] && OUTPUT_T=0
+            (( $(echo "${COST_T} > 100" | bc -l) )) && COST_T=0
             TOTAL_INPUT_TOKENS=$((TOTAL_INPUT_TOKENS + INPUT_T))
             TOTAL_OUTPUT_TOKENS=$((TOTAL_OUTPUT_TOKENS + OUTPUT_T))
             TOTAL_COST=$(echo "${TOTAL_COST} + ${COST_T}" | bc -l)

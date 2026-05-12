@@ -26,6 +26,12 @@ cd your-repo
 bash prism-cli.sh bootstrapper install-git-hooks --team-id your-team
 ```
 
+Optional: configure token/cost bounds per commit (defaults: 1M tokens, $100):
+
+```bash
+bash prism-cli.sh bootstrapper install-git-hooks --team-id your-team --max-tokens 500000 --max-cost 50
+```
+
 This installs the `prepare-commit-msg` hook and creates the `.prism/` configuration directory. Every commit will now be tagged with AI-origin metadata.
 
 ### Step 2: Choose a CLAUDE.md Template

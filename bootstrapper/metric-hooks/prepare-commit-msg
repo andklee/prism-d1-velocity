@@ -11,6 +11,7 @@ set -uo pipefail
 
 COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="${2:-}"
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
 SHA="${3:-}"
 
 # Skip for merge commits, amend, and squash
@@ -87,7 +88,6 @@ AI_OUTPUT_TOKENS=""
 AI_COST=""
 
 if [[ -n "${AI_TOOL}" ]] && command -v codeburn &>/dev/null; then
-    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
     TRACKER_DIR="${REPO_ROOT}/.prism/tokentracker"
     CURRENT_USER=$(git config user.email 2>/dev/null || whoami)
     SAFE_USER=$(echo "${CURRENT_USER}" | sed 's/[@.]/_/g')
@@ -135,6 +135,17 @@ SNAPSHOT
 fi
 
 # ---------------------------------------------------------------------------
+# Load configurable bounds from .prism/config.json
+# ---------------------------------------------------------------------------
+REPO_CONFIG="${REPO_ROOT}/.prism/config.json"
+MAX_TOKENS=1000000
+MAX_COST=100
+if [[ -f "${REPO_CONFIG}" ]] && command -v jq &>/dev/null; then
+    MAX_TOKENS=$(jq -r '.max_tokens // 1000000' "${REPO_CONFIG}" 2>/dev/null || echo "1000000")
+    MAX_COST=$(jq -r '.max_cost // 100' "${REPO_CONFIG}" 2>/dev/null || echo "100")
+fi
+
+# ---------------------------------------------------------------------------
 # Append trailers to commit message
 # ---------------------------------------------------------------------------
 
@@ -157,14 +168,17 @@ if [[ -n "${AI_MODEL}" ]]; then
 fi
 
 if [[ -n "${AI_INPUT_TOKENS}" ]]; then
+    [[ ${AI_INPUT_TOKENS} -gt ${MAX_TOKENS} ]] && AI_INPUT_TOKENS=${MAX_TOKENS}
     echo "AI-Input-Tokens: ${AI_INPUT_TOKENS}" >> "${COMMIT_MSG_FILE}"
 fi
 
 if [[ -n "${AI_OUTPUT_TOKENS}" ]]; then
+    [[ ${AI_OUTPUT_TOKENS} -gt ${MAX_TOKENS} ]] && AI_OUTPUT_TOKENS=${MAX_TOKENS}
     echo "AI-Output-Tokens: ${AI_OUTPUT_TOKENS}" >> "${COMMIT_MSG_FILE}"
 fi
 
 if [[ -n "${AI_COST}" ]]; then
+    (( $(echo "${AI_COST} > ${MAX_COST}" | bc -l 2>/dev/null) )) && AI_COST="${MAX_COST}.00"
     echo "AI-Cost: \$${AI_COST}" >> "${COMMIT_MSG_FILE}"
 fi
 

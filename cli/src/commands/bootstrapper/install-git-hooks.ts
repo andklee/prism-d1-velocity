@@ -17,9 +17,11 @@ export default {
   description: 'Install prepare-commit-msg hook and configure .prism/config.json',
   options: [
     { flags: '--team-id <id>', description: 'Team ID (skips interactive prompt)' },
+    { flags: '--max-tokens <n>', description: 'Max tokens per commit (default: 1000000)' },
+    { flags: '--max-cost <n>', description: 'Max cost per commit in USD (default: 100)' },
     { flags: '--uninstall', description: 'Remove PRISM hooks' },
   ],
-  async action(opts: { teamId?: string; uninstall?: boolean }) {
+  async action(opts: { teamId?: string; maxTokens?: string; maxCost?: string; uninstall?: boolean }) {
     const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
     const hooksDir = resolve(gitRoot, '.git/hooks');
     const prismDir = resolve(gitRoot, '.prism');
@@ -55,7 +57,9 @@ export default {
 
     // --- Create .prism/ ---
     mkdirSync(prismDir, { recursive: true });
-    writeFileSync(configFile, JSON.stringify({ team_id: teamId }, null, 2) + '\n');
+    const maxTokens = parseInt(opts.maxTokens || '1000000', 10);
+    const maxCost = parseFloat(opts.maxCost || '100');
+    writeFileSync(configFile, JSON.stringify({ team_id: teamId, max_tokens: maxTokens, max_cost: maxCost }, null, 2) + '\n');
     console.log(`Config: ${configFile}`);
 
     // --- .gitignore ---
