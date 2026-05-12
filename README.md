@@ -227,4 +227,4 @@ Extension exercises: Security Agent design review (+10 min in Module 03), code r
 
 ## License
 
-Internal use — AWS Solutions Architecture, Startups Organization.
+This project is licensed under the [MIT License](LICENSE).
