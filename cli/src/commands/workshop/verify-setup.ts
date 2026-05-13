@@ -172,32 +172,10 @@ async function checkAwsCli(verifyOnly = false) {
 async function checkBedrock() {
   heading('2. Amazon Bedrock Model Access');
 
-  const models = run("aws bedrock list-foundation-models --query \"modelSummaries[?contains(modelId, 'anthropic.claude')].modelId\" --output text");
-  let claudeModelIds: string[] = [];
-
-  if (models.ok) {
-    claudeModelIds = models.stdout.split(/\s+/).filter(Boolean);
-    if (claudeModelIds.length > 0) {
-      pass(`Bedrock lists ${claudeModelIds.length} Claude model(s)`);
-    } else {
-      fail('No Claude models found in Bedrock', 'Enable Claude model access in AWS Console > Bedrock > Model access');
-    }
-  } else {
-    fail('Cannot query Bedrock models', 'Check AWS credentials and region (need us-west-2)');
-  }
-
-  const profiles = run("aws bedrock list-inference-profiles --query \"inferenceProfileSummaries[?contains(inferenceProfileId, 'anthropic.claude')].inferenceProfileId\" --output text");
-  let invocableIds: string[] = [];
-  if (profiles.ok) {
-    invocableIds = profiles.stdout.split(/\s+/).filter(Boolean);
-  }
-
-  const candidates = invocableIds.length > 0 ? invocableIds : claudeModelIds;
-
-  if (candidates.length === 0) {
-    fail('Cannot test Bedrock invocation — no Claude model available', 'Enable Claude model access in AWS Console > Bedrock > Model access');
-    return;
-  }
+  const requiredModels = [
+    { id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', name: 'Claude Sonnet 4.5 (Claude Code)' },
+    { id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', name: 'Claude Haiku 4.5 (eval gates)' },
+  ];
 
   const bodyFile = '/tmp/prism-bedrock-request.json';
   const body = JSON.stringify({
@@ -207,37 +185,25 @@ async function checkBedrock() {
   });
   writeFileSync(bodyFile, body);
 
-  let invoked = false;
-  const errors: { modelId: string; error: string }[] = [];
-  for (const modelId of candidates) {
+  for (const model of requiredModels) {
     const invoke = run(
       `aws bedrock-runtime invoke-model ` +
-      `--model-id "${modelId}" ` +
+      `--model-id "${model.id}" ` +
       `--content-type "application/json" ` +
       `--accept "application/json" ` +
       `--body "fileb://${bodyFile}" ` +
       `/tmp/prism-bedrock-test.json`
     );
     if (invoke.ok) {
-      pass(`Bedrock Claude invocation works (${modelId})`);
+      pass(`${model.name} — invocation works`);
       run('rm -f /tmp/prism-bedrock-test.json');
-      invoked = true;
-      break;
     } else {
-      errors.push({ modelId, error: invoke.stderr });
+      const shortError = invoke.stderr.split('\n')[0] || 'unknown error';
+      fail(`${model.name} — cannot invoke (${model.id})`, `Enable model access in AWS Console > Bedrock > Model access. Error: ${shortError}`);
     }
   }
 
   try { unlinkSync(bodyFile); } catch { /* ignore */ }
-
-  if (!invoked) {
-    fail('Cannot invoke any Claude model on Bedrock', 'Ensure model access is granted for at least one Claude model in AWS Console > Bedrock > Model access');
-    console.log(`        Tried ${errors.length} model(s):`);
-    for (const { modelId, error } of errors) {
-      const shortError = error.split('\n')[0] || 'unknown error';
-      console.log(`          - ${modelId}: ${shortError}`);
-    }
-  }
 }
 
 async function checkClaudeCode(verifyOnly = false) {
@@ -369,6 +335,9 @@ async function checkPython(verifyOnly = false) {
     const [, major, minor] = match.map(Number);
     if (major >= 3 && minor >= 11) {
       pass(`${stdout} (>= 3.11 required)`);
+    } else if (commandExists('python3.11')) {
+      const { stdout: v311 } = run('python3.11 --version');
+      pass(`${v311} found as python3.11 (default '${python}' is ${stdout})`);
     } else {
       const cmd = installCmd('python3', {
         brew: 'python@3.11',
@@ -389,12 +358,12 @@ async function checkPython(verifyOnly = false) {
     fail(`Could not determine Python version (${stdout})`, 'Ensure python3 --version works');
   }
 
-  if (commandExists('pip3') || commandExists('pip')) {
-    const pip = commandExists('pip3') ? 'pip3' : 'pip';
-    const { stdout: pipVersion } = run(`${pip} --version`);
+  const pipBin = commandExists('pip3') ? 'pip3' : commandExists('pip3.11') ? 'pip3.11' : commandExists('pip') ? 'pip' : null;
+  if (pipBin) {
+    const { stdout: pipVersion } = run(`${pipBin} --version`);
     pass(`pip installed (${pipVersion.split(' ').slice(0, 2).join(' ')})`);
   } else {
-    fail('pip not found', 'Install pip: python3 -m ensurepip --upgrade');
+    fail('pip not found', 'Install pip: python3.11 -m ensurepip --upgrade');
     if (!verifyOnly) {
       await offerInstall('pip', `${python} -m ensurepip --upgrade`);
     }
