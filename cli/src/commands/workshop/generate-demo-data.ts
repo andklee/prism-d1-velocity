@@ -101,6 +101,8 @@ export default {
       const date = new Date();
       date.setDate(date.getDate() - day);
       const dateStr = formatDate(date);
+      const maxH = day === 0 ? Math.max(0, new Date().getUTCHours() - 1) : 17;
+      const minH = Math.min(8, maxH);
 
       // 8-15 commits per day
       const commits = randomInt(8, 15);
@@ -108,7 +110,7 @@ export default {
         const idx = randomInt(0, 4);
         const origin = ORIGINS[idx];
         const tool = TOOLS[idx];
-        const h = randomInt(8, 17);
+        const h = randomInt(minH, maxH);
         const m = randomInt(0, 59);
         const ts = `${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`;
         const lines = randomInt(10, 129);
@@ -129,7 +131,7 @@ export default {
         const ratio = parseFloat((ac / tc).toFixed(4));
         const lt = 3600 * (day + 1) + randomInt(0, 3599);
         const lth = parseFloat((lt / 3600).toFixed(2));
-        const ts = `${dateStr}T${String(randomInt(8, 17)).padStart(2, '0')}:30:00Z`;
+        const ts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:30:00Z`;
         const pr = 100 + day * 10 + i;
 
         // Generate realistic token usage for the PR (scales with commit count)
@@ -167,7 +169,7 @@ export default {
         let res = 'PASS';
         if (day === 4 && randomInt(0, 1) === 0) { score = 0.62; res = 'FAIL'; }
         if (randomInt(0, 7) === 0) { score = 0.71; res = 'FAIL'; }
-        const ts = `${dateStr}T${String(randomInt(8, 17)).padStart(2, '0')}:45:00Z`;
+        const ts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:45:00Z`;
 
         addEvent('prism.d1.eval', {
           team_id: team, repo, timestamp: ts, prism_level: 2,
@@ -237,7 +239,7 @@ export default {
         const dur = randomInt(1000, 5999);
         const tokens = randomInt(2000, 9999);
         const status = randomInt(0, 5) === 0 ? 'failure' : 'success';
-        const ats = `${dateStr}T${String(randomInt(8, 17)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        const ats = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
 
         addEvent('prism.d1.agent', {
           team_id: team, repo, timestamp: ats, prism_level: 3,

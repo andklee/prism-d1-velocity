@@ -243,11 +243,13 @@ jobs:
             // Phase 2: Wait for completion (10 min) — look after the "reviewing" comment
             const since = reviewingComment.created_at;
             for (let i = 0; i < 40; i++) {
-              const { data: comments } = await github.rest.issues.listComments({ ...opts, issue_number: pr, since });
-              const done = comments.filter(c => c.user.login === 'aws-security-agent[bot]').some(c => !c.body.includes('reviewing your pull request'));
-              if (done) {
-                const { data: reviewComments } = await github.rest.pulls.listReviewComments({ ...opts, pull_number: pr, since });
-                const findings = reviewComments.filter(c => c.user.login === 'aws-security-agent[bot]');
+              // Check for completed review submission (summary appears as review body, not issue comment)
+              const { data: reviews } = await github.rest.pulls.listReviews({ ...opts, pull_number: pr });
+              const botReview = reviews.find(r => r.user.login === 'aws-security-agent[bot]' && new Date(r.submitted_at) >= new Date(since));
+              // Check for inline review comments
+              const { data: reviewComments } = await github.rest.pulls.listReviewComments({ ...opts, pull_number: pr });
+              const findings = reviewComments.filter(c => c.user.login === 'aws-security-agent[bot]' && new Date(c.created_at) >= new Date(since));
+              if (botReview || findings.length > 0) {
                 core.setOutput('findings', String(findings.length));
                 return;
               }

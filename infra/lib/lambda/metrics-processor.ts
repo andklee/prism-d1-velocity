@@ -343,6 +343,10 @@ async function publishCloudWatchMetrics(
     ? [...sharedDimensions, { Name: 'AIOrigin', Value: aiOrigin }]
     : sharedDimensions;
 
+  // Clamp timestamp: CloudWatch rejects timestamps >2h in the future
+  const eventTime = new Date(detail.timestamp);
+  const metricTimestamp = eventTime.getTime() > Date.now() ? new Date() : eventTime;
+
   const metricData: MetricDatum[] = [];
 
   // Primary metric — published with both dimension sets for flexibility:
@@ -354,7 +358,7 @@ async function publishCloudWatchMetrics(
       Value: detail.metric.value,
       Unit: mapUnit(detail.metric.unit),
       Dimensions: sharedDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
     if (aiOrigin) {
       metricData.push({
@@ -362,7 +366,7 @@ async function publishCloudWatchMetrics(
         Value: detail.metric.value,
         Unit: mapUnit(detail.metric.unit),
         Dimensions: dimensionsWithOrigin,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
   }
@@ -376,7 +380,7 @@ async function publishCloudWatchMetrics(
         Value: detail.dora.deployment_frequency,
         Unit: StandardUnit.Count,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
       if (aiOrigin) {
         metricData.push({
@@ -384,7 +388,7 @@ async function publishCloudWatchMetrics(
           Value: detail.dora.deployment_frequency,
           Unit: StandardUnit.Count,
           Dimensions: doraDims,
-          Timestamp: new Date(detail.timestamp),
+          Timestamp: metricTimestamp,
         });
       }
     }
@@ -394,7 +398,7 @@ async function publishCloudWatchMetrics(
         Value: detail.dora.lead_time_seconds,
         Unit: StandardUnit.Seconds,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
       if (aiOrigin) {
         metricData.push({
@@ -402,7 +406,7 @@ async function publishCloudWatchMetrics(
           Value: detail.dora.lead_time_seconds,
           Unit: StandardUnit.Seconds,
           Dimensions: doraDims,
-          Timestamp: new Date(detail.timestamp),
+          Timestamp: metricTimestamp,
         });
       }
     }
@@ -412,7 +416,7 @@ async function publishCloudWatchMetrics(
         Value: detail.dora.change_failure_rate,
         Unit: StandardUnit.Percent,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     if (detail.dora.mttr_seconds != null) {
@@ -421,7 +425,7 @@ async function publishCloudWatchMetrics(
         Value: detail.dora.mttr_seconds,
         Unit: StandardUnit.Seconds,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
   }
@@ -447,7 +451,7 @@ async function publishCloudWatchMetrics(
           Value: value,
           Unit: unit,
           Dimensions: sharedDimensions,
-          Timestamp: new Date(detail.timestamp),
+          Timestamp: metricTimestamp,
         });
       }
     }
@@ -479,7 +483,7 @@ async function publishCloudWatchMetrics(
           Value: value,
           Unit: unit,
           Dimensions: agentDimensions,
-          Timestamp: new Date(detail.timestamp),
+          Timestamp: metricTimestamp,
         });
         // Also publish without AgentName (for aggregate dashboard queries)
         metricData.push({
@@ -487,7 +491,7 @@ async function publishCloudWatchMetrics(
           Value: value,
           Unit: unit,
           Dimensions: sharedDimensions,
-          Timestamp: new Date(detail.timestamp),
+          Timestamp: metricTimestamp,
         });
       }
     }
@@ -504,14 +508,14 @@ async function publishCloudWatchMetrics(
       Value: detail.eval.result === 'PASS' ? 100 : 0,
       Unit: StandardUnit.Percent,
       Dimensions: rubricDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
     metricData.push({
       MetricName: 'EvalScore',
       Value: detail.eval.score ?? 0,
       Unit: StandardUnit.None,
       Dimensions: rubricDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
   }
 
@@ -527,7 +531,7 @@ async function publishCloudWatchMetrics(
       Value: 1,
       Unit: StandardUnit.Count,
       Dimensions: guardrailDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
     if (detail.guardrail.action_taken === 'BLOCK') {
       metricData.push({
@@ -535,7 +539,7 @@ async function publishCloudWatchMetrics(
         Value: 1,
         Unit: StandardUnit.Count,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     if (detail.guardrail.action_taken === 'ANONYMIZE') {
@@ -544,7 +548,7 @@ async function publishCloudWatchMetrics(
         Value: 1,
         Unit: StandardUnit.Count,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
   }
@@ -560,7 +564,7 @@ async function publishCloudWatchMetrics(
       Value: 1,
       Unit: StandardUnit.Count,
       Dimensions: mcpDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
     if (!detail.mcp_tool_call.authorized) {
       metricData.push({
@@ -568,7 +572,7 @@ async function publishCloudWatchMetrics(
         Value: 1,
         Unit: StandardUnit.Count,
         Dimensions: mcpDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     if (detail.mcp_tool_call.duration_ms != null) {
@@ -577,7 +581,7 @@ async function publishCloudWatchMetrics(
         Value: detail.mcp_tool_call.duration_ms,
         Unit: StandardUnit.Milliseconds,
         Dimensions: mcpDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
   }
@@ -592,14 +596,14 @@ async function publishCloudWatchMetrics(
         Value: detail.quality.ai_defect_rate,
         Unit: StandardUnit.Percent,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       },
       {
         MetricName: 'PostMergeDefectRateHuman',
         Value: detail.quality.human_defect_rate,
         Unit: StandardUnit.Percent,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       },
     );
   }
@@ -611,7 +615,7 @@ async function publishCloudWatchMetrics(
       Value: 1,
       Unit: StandardUnit.Count,
       Dimensions: sharedDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
   }
 
@@ -628,7 +632,7 @@ async function publishCloudWatchMetrics(
       Value: 1,
       Unit: StandardUnit.Count,
       Dimensions: phaseDimensions,
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
     if (finding.severity === 'CRITICAL' || finding.severity === 'HIGH') {
       metricData.push({
@@ -636,7 +640,7 @@ async function publishCloudWatchMetrics(
         Value: 1,
         Unit: StandardUnit.Count,
         Dimensions: sharedDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     if (finding.ai_origin) {
@@ -648,7 +652,7 @@ async function publishCloudWatchMetrics(
           ...sharedDimensions,
           { Name: 'AIOrigin', Value: finding.ai_origin },
         ],
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     if (finding.cvss_score != null) {
@@ -657,7 +661,7 @@ async function publishCloudWatchMetrics(
         Value: finding.cvss_score,
         Unit: StandardUnit.None,
         Dimensions: phaseDimensions,
-        Timestamp: new Date(detail.timestamp),
+        Timestamp: metricTimestamp,
       });
     }
     metricData.push({
@@ -668,7 +672,7 @@ async function publishCloudWatchMetrics(
         ...sharedDimensions,
         { Name: 'Phase', Value: finding.phase },
       ],
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
   }
 
@@ -684,7 +688,7 @@ async function publishCloudWatchMetrics(
         { Name: 'Severity', Value: remediation.severity },
         { Name: 'AIOrigin', Value: remediation.remediated_by_origin },
       ],
-      Timestamp: new Date(detail.timestamp),
+      Timestamp: metricTimestamp,
     });
   }
 
