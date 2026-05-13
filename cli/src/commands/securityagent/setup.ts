@@ -32,12 +32,12 @@ function run(cmd: string, opts: Record<string, any> = {}) {
 export default {
   description: 'Deploy Security Agent infrastructure and create web console application',
   options: [
-    { flags: '--profile <name>', description: 'AWS CLI profile', default: process.env.AWS_PROFILE || 'default' },
+    { flags: '--profile <name>', description: 'AWS CLI profile', default: process.env.AWS_PROFILE || '' },
     { flags: '--region <region>', description: 'AWS region', default: 'us-west-2' },
   ],
   action(options: { profile: string; region: string }) {
     const { profile, region } = options;
-    const env = `--profile ${profile} --region ${region}`;
+    const env = `${profile ? `--profile ${profile} ` : ''}--region ${region}`;
 
     // Deploy CDK with security agent enabled
     console.log('🚀 Deploying Security Agent infrastructure...');
@@ -47,7 +47,7 @@ export default {
     }
     const cdkBin = resolve(INFRA_DIR, 'node_modules/.bin/cdk');
 
-    const account = runCapture(`aws sts get-caller-identity --profile ${profile} --query Account --output text`);
+    const account = runCapture(`aws sts get-caller-identity ${profile ? `--profile ${profile} ` : ''}--query Account --output text`);
     if (!account.ok) {
       console.error('Failed to get account ID. Check your AWS credentials.');
       process.exit(1);
