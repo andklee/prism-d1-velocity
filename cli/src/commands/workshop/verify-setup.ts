@@ -343,7 +343,7 @@ async function checkNode(verifyOnly = false) {
 async function checkPython(verifyOnly = false) {
   heading('7. Python');
 
-  const python = commandExists('python3') ? 'python3' : commandExists('python') ? 'python' : null;
+  const python = commandExists('python3') ? 'python3' : commandExists('python3.11') ? 'python3.11' : commandExists('python') ? 'python' : null;
 
   if (!python) {
     const cmd = installCmd('python3', {
@@ -465,7 +465,7 @@ async function checkCodeburn(verifyOnly = false) {
     pass(`codeburn installed (${stdout || 'version unknown'})`);
   } else {
     const isMac = process.platform === 'darwin';
-    const installCmd = isMac ? 'brew install codeburn' : 'npm install -g codeburn';
+    const installCmd = isMac ? 'npm install -g codeburn' : 'npm install -g codeburn';
     fail('codeburn not found', `Run: ${installCmd}`);
     if (!verifyOnly) {
       await offerInstall('codeburn', installCmd);
