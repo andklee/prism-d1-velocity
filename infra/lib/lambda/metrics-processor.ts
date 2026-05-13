@@ -411,9 +411,10 @@ async function publishCloudWatchMetrics(
       }
     }
     if (detail.dora.change_failure_rate != null) {
+      const cfrValue = detail.dora.change_failure_rate <= 1 ? detail.dora.change_failure_rate * 100 : detail.dora.change_failure_rate;
       metricData.push({
         MetricName: 'ChangeFailureRate',
-        Value: detail.dora.change_failure_rate,
+        Value: cfrValue,
         Unit: StandardUnit.Percent,
         Dimensions: sharedDimensions,
         Timestamp: metricTimestamp,
@@ -430,25 +431,26 @@ async function publishCloudWatchMetrics(
     }
   }
 
-  // AI-DORA metrics
+  // AI-DORA metrics — scale 0–1 ratios to 0–100 for CloudWatch Percent unit
   if (detail.ai_dora) {
-    const aiDoraMap: Array<[string, number | null, StandardUnit]> = [
-      ['AIAcceptanceRate', detail.ai_dora.ai_acceptance_rate, StandardUnit.Percent],
-      ['AIToMergeRatio', detail.ai_dora.ai_to_merge_ratio, StandardUnit.Percent],
-      ['SpecToCodeHours', detail.ai_dora.spec_to_code_hours, StandardUnit.Count],
-      ['PostMergeDefectRate', detail.ai_dora.post_merge_defect_rate, StandardUnit.Percent],
-      ['EvalGatePassRate', detail.ai_dora.eval_gate_pass_rate, StandardUnit.Percent],
-      ['AITestCoverageDelta', detail.ai_dora.ai_test_coverage_delta, StandardUnit.Percent],
-      ['AIInputTokens', detail.ai_dora.total_input_tokens, StandardUnit.Count],
-      ['AIOutputTokens', detail.ai_dora.total_output_tokens, StandardUnit.Count],
-      ['AICostUSD', detail.ai_dora.total_cost_usd, StandardUnit.None],
+    const aiDoraMap: Array<[string, number | null, StandardUnit, boolean]> = [
+      ['AIAcceptanceRate', detail.ai_dora.ai_acceptance_rate, StandardUnit.Percent, true],
+      ['AIToMergeRatio', detail.ai_dora.ai_to_merge_ratio, StandardUnit.Percent, true],
+      ['SpecToCodeHours', detail.ai_dora.spec_to_code_hours, StandardUnit.Count, false],
+      ['PostMergeDefectRate', detail.ai_dora.post_merge_defect_rate, StandardUnit.Percent, true],
+      ['EvalGatePassRate', detail.ai_dora.eval_gate_pass_rate, StandardUnit.Percent, true],
+      ['AITestCoverageDelta', detail.ai_dora.ai_test_coverage_delta, StandardUnit.Percent, true],
+      ['AIInputTokens', detail.ai_dora.total_input_tokens, StandardUnit.Count, false],
+      ['AIOutputTokens', detail.ai_dora.total_output_tokens, StandardUnit.Count, false],
+      ['AICostUSD', detail.ai_dora.total_cost_usd, StandardUnit.None, false],
     ];
 
-    for (const [name, value, unit] of aiDoraMap) {
+    for (const [name, value, unit, scaleToPercent] of aiDoraMap) {
       if (value != null) {
+        const publishValue = scaleToPercent && value <= 1 ? value * 100 : value;
         metricData.push({
           MetricName: name,
-          Value: value,
+          Value: publishValue,
           Unit: unit,
           Dimensions: sharedDimensions,
           Timestamp: metricTimestamp,

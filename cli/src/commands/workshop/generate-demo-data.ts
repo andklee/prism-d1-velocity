@@ -251,6 +251,139 @@ export default {
           },
         });
       }
+
+      // Guardrail triggers (Pillar 4)
+      const GUARDRAIL_CATEGORIES = ['CONTENT_FILTER', 'DENIED_TOPIC', 'SENSITIVE_INFO', 'WORD_FILTER'] as const;
+      const GUARDRAIL_ACTIONS = ['BLOCK', 'ANONYMIZE', 'WARN'] as const;
+      const guardrailCount = randomInt(1, 5);
+      for (let g = 0; g < guardrailCount; g++) {
+        const gts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        const category = GUARDRAIL_CATEGORIES[randomInt(0, 3)];
+        const action = GUARDRAIL_ACTIONS[randomInt(0, 2)];
+        addEvent('prism.d1.guardrail', {
+          team_id: team, repo, timestamp: gts, prism_level: 2,
+          metric: { name: 'guardrail_trigger', value: 1, unit: 'count' },
+          guardrail: {
+            guardrail_id: 'gr-demo-001', guardrail_name: 'prism-safety',
+            trigger_category: category, trigger_type: 'automated',
+            action_taken: action, agent_name: 'task-assistant', invocation_id: `inv-${day}-${g}`,
+          },
+        });
+      }
+
+      // MCP tool calls (Pillar 3)
+      const MCP_TOOLS = ['file_read', 'file_write', 'shell_exec', 'web_fetch', 'db_query'];
+      const mcpCount = randomInt(5, 15);
+      for (let m = 0; m < mcpCount; m++) {
+        const mts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        const authorized = randomInt(0, 19) !== 0; // 5% denied
+        addEvent('prism.d1.mcp.tool_call', {
+          team_id: team, repo, timestamp: mts, prism_level: 2,
+          metric: { name: 'mcp_tool_call', value: 1, unit: 'count' },
+          mcp_tool_call: {
+            session_id: `sess-${day}-${m}`, client_id: 'claude-code',
+            tool_name: MCP_TOOLS[randomInt(0, 4)],
+            scopes_used: ['read'], authorized,
+            risk_level: authorized ? 'low' : 'high',
+            duration_ms: randomInt(50, 2000),
+            result_status: authorized ? 'success' : 'denied',
+          },
+        });
+      }
+
+      // Bedrock cost & token efficiency (Pillar 5)
+      const dailyCost = parseFloat((randomInt(15, 45) + randomInt(0, 99) / 100).toFixed(2));
+      const tokenEff = randomInt(80, 300);
+      addEvent('prism.d1.assessment', {
+        team_id: team, repo, timestamp: ts, prism_level: 2,
+        metric: { name: 'BedrockCostUSD', value: dailyCost, unit: 'none' },
+      });
+      addEvent('prism.d1.assessment', {
+        team_id: team, repo, timestamp: ts, prism_level: 2,
+        metric: { name: 'TokenEfficiency', value: tokenEff, unit: 'none' },
+      });
+
+      // Quality: AI vs Human defect rates (Pillar 7)
+      const aiDefect = parseFloat((randomInt(1, 4) / 100).toFixed(4));
+      const humanDefect = parseFloat((randomInt(2, 7) / 100).toFixed(4));
+      addEvent('prism.d1.quality', {
+        team_id: team, repo, timestamp: ts, prism_level: 2,
+        metric: { name: 'quality_comparison', value: 1, unit: 'count' },
+        quality: {
+          deployment_id: `deploy-${day}`,
+          ai_defect_rate: aiDefect, human_defect_rate: humanDefect,
+          total_ai_commits: randomInt(5, 12), total_human_commits: randomInt(3, 8),
+        },
+      });
+
+      // Security Agent findings
+      const PHASES = ['design_review', 'code_review', 'pen_test'] as const;
+      const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
+      const findingCount = randomInt(1, 4);
+      for (let f = 0; f < findingCount; f++) {
+        const fts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        const severity = SEVERITIES[randomInt(0, 3)];
+        const phase = PHASES[randomInt(0, 2)];
+        const aiOrigin = randomInt(0, 1) === 0 ? 'ai-assisted' : 'human';
+        addEvent('prism.d1.security.code_review', {
+          team_id: team, repo, timestamp: fts, prism_level: 2,
+          metric: { name: 'security_finding', value: 1, unit: 'count' },
+          security_agent_finding: {
+            finding_id: `finding-${day}-${f}`, phase, severity,
+            cvss_score: severity === 'CRITICAL' ? 9.1 : severity === 'HIGH' ? 7.5 : severity === 'MEDIUM' ? 5.2 : 2.8,
+            title: 'Demo finding', category: 'injection',
+            cwe_id: 'CWE-79', exploit_validated: phase === 'pen_test',
+            compliance_mappings: ['OWASP-A03'], ai_origin: aiOrigin,
+            spec_ref: null, found_at: fts, remediated_at: null,
+          },
+        });
+      }
+
+      // Security remediation
+      if (day > 0 && randomInt(0, 2) === 0) {
+        const rts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        const remOrigin = randomInt(0, 1) === 0 ? 'ai-assisted' : 'human';
+        addEvent('prism.d1.security.remediation', {
+          team_id: team, repo, timestamp: rts, prism_level: 2,
+          metric: { name: 'security_remediation', value: 1, unit: 'count' },
+          security_remediation: {
+            finding_id: `finding-${day + 1}-0`,
+            severity: SEVERITIES[randomInt(0, 2)],
+            remediation_time_hours: randomInt(2, 48),
+            remediated_by_origin: remOrigin,
+            finding_phase: 'code_review',
+          },
+        });
+      }
+
+      // Exfiltration alert (rare)
+      if (randomInt(0, 6) === 0) {
+        const ets = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`;
+        addEvent('prism.d1.security', {
+          team_id: team, repo, timestamp: ets, prism_level: 2,
+          metric: { name: 'exfiltration_alert', value: 1, unit: 'count' },
+          security: {
+            alert_type: 'anomalous_read', table_name: 'prism-d1-events',
+            principal_arn: 'arn:aws:iam::123456789012:role/demo-role',
+            read_count: randomInt(500, 2000),
+            window_start: ets, window_end: ets,
+          },
+        });
+      }
+
+      // Eval by rubric (enriches eval data)
+      const RUBRICS = ['code-quality', 'api-response-quality', 'agent-quality', 'security-compliance', 'spec-compliance'];
+      for (const rubric of RUBRICS) {
+        const rScore = parseFloat((randomInt(65, 98) / 100).toFixed(2));
+        const rts = `${dateStr}T${String(randomInt(minH, maxH)).padStart(2, '0')}:50:00Z`;
+        addEvent('prism.d1.eval', {
+          team_id: team, repo, timestamp: rts, prism_level: 2,
+          metric: { name: 'eval_score', value: rScore, unit: 'score' },
+          ai_context: { tool: 'bedrock-eval', model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', origin: 'ai-generated' },
+          ai_dora: { eval_gate_pass_rate: rScore >= 0.7 ? 1 : 0 },
+          eval: { result: rScore >= 0.7 ? 'PASS' : 'FAIL', rubric, score: rScore, pr_number: 100 + day * 10 },
+        });
+      }
     }
 
     flush();
