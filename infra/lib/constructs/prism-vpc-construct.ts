@@ -38,15 +38,8 @@ export class PrismVpcConstruct extends Construct {
       vpc: this.vpc,
       securityGroupName: 'prism-d1-lambda-sg',
       description: 'Security group for PRISM D1 Lambda functions',
-      allowAllOutbound: false,
+      allowAllOutbound: true, // Safe: VPC has no NAT/IGW, traffic only reaches AWS via endpoints
     });
-
-    // Allow HTTPS outbound to VPC endpoints
-    this.lambdaSecurityGroup.addEgressRule(
-      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
-      ec2.Port.tcp(443),
-      'Allow HTTPS to VPC endpoints',
-    );
 
     // --- Gateway endpoint: DynamoDB ---
     this.vpc.addGatewayEndpoint('DynamoDBEndpoint', {
