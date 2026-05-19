@@ -18,7 +18,7 @@ const pipelineStack = new MetricsPipelineStack(app, 'PrismD1MetricsPipeline', {
   env,
   description: 'PRISM D1 Velocity - Core metrics event pipeline (EventBridge, DynamoDB)',
   tags: {
-    Project: 'PRISM',
+    'prism:project': 'PRISM',
     Domain: 'D1-Velocity',
     Component: 'MetricsPipeline',
   },
@@ -32,7 +32,7 @@ const apiStack = new ApiStack(app, 'PrismD1Api', {
   metadataTable: pipelineStack.metadataTable,
   kmsKey: pipelineStack.kmsKey,
   tags: {
-    Project: 'PRISM',
+    'prism:project': 'PRISM',
     Domain: 'D1-Velocity',
     Component: 'Api',
   },
@@ -42,7 +42,7 @@ const dashboardStack = new DashboardStack(app, 'PrismD1Dashboard', {
   env,
   description: 'PRISM D1 Velocity - CloudWatch dashboards and alarms',
   tags: {
-    Project: 'PRISM',
+    'prism:project': 'PRISM',
     Domain: 'D1-Velocity',
     Component: 'Dashboard',
   },
