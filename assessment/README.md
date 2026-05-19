@@ -4,47 +4,39 @@
 
 ## Assessment Flow
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│  QUALIFICATION                                                │
-│                                                               │
-│  Path 1: CLI + SA                                             │
-│  ─────────────────                                            │
-│  Customer Repo ──→ prism-cli assessment run ──→ scan.json     │
-│                        12 categories, real artifacts           │
-│                             │                                 │
-│                             ▼                                 │
-│  SA imports scan.json ──→ assessment web ──→ AI Interview     │
-│                             20 questions, 6 sections          │
-│                                                               │
-│  Path 2: Self-Service                                         │
-│  ────────────────────                                         │
-│  prism-cli assessment web ──→ Scan + Interview + Org in UI   │
-│                                                               │
-├───────────────────────────────────────────────────────────────┤
-│  SCORING                                                      │
-│                                                               │
-│  Scanner (0-100)    ──┐                                       │
-│  Interview (0-100)  ──┼──→ 40% + 40% + 20% = Blended Score   │
-│  Org Readiness (0-20) ┘                                       │
-│                          │                                    │
-│                     PRISM D1 Level (L1.0 – L5.0)              │
-│                          │                                    │
-│                     Verdict:                                   │
-│                       • READY_FOR_PILOT (≥L2.0, org≥12)       │
-│                       • NEEDS_FOUNDATIONS (≥L1.5, org≥8)       │
-│                       • NOT_QUALIFIED (below thresholds)       │
-│                                                               │
-├───────────────────────────────────────────────────────────────┤
-│  ONBOARDING                                                   │
-│                                                               │
-│  Track A: Foundations  ──→ Modules 00-02, 2wk pre-work        │
-│  Track B: Full Workshop ──→ All modules, 8-week pilot         │
-│  Track C: Accelerated  ──→ Modules 03-05, targeted gaps       │
-│  Track D: Advanced     ──→ Custom engagement, L4+ optimization│
-│                          │                                    │
-│                Customer-Facing Report (HTML / JSON / Markdown) │
-└───────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Qualification
+        direction TB
+        A[Customer Repo] -->|"prism-cli assessment run"| B[Scan Score 0-100]
+        B -->|scan.json| C{Who interviews?}
+        C -->|Path 1: SA| D[SA imports into web UI]
+        C -->|Path 2: Self-service| E["prism-cli assessment web"]
+        D --> F[AI Interview - 20 questions, 6 sections]
+        E --> F
+        F --> G[Interview Score 0-100]
+        H[Org Readiness - 5 binary factors] --> I[Org Score 0-20]
+    end
+
+    subgraph Scoring
+        B --> J[40% Scanner]
+        G --> K[40% Interview]
+        I --> L[20% Org]
+        J & K & L --> M[Blended Score → PRISM Level L1.0–L5.0]
+        M --> N{Verdict}
+        N -->|"≥L2.0, org≥12"| O[READY_FOR_PILOT]
+        N -->|"≥L1.5, org≥8"| P[NEEDS_FOUNDATIONS]
+        N -->|below| Q[NOT_QUALIFIED]
+    end
+
+    subgraph Onboarding
+        O & P --> R{Track Assignment}
+        R --> S[Track A: Foundations]
+        R --> T[Track B: Full Workshop]
+        R --> U[Track C: Accelerated]
+        R --> V[Track D: Advanced]
+        S & T & U & V --> W[Customer Report - HTML/JSON/Markdown]
+    end
 ```
 
 ---
