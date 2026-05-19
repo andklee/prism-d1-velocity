@@ -2,9 +2,70 @@
 
 > Artifact-level assessment — not a survey, a real score.
 
-## ⚠️ Code has moved to `prism-cli`
+## Assessment Flow
 
-The executable code (scanner, interview agent, scoring, reports) now lives in the CLI at `cli/src/`. This directory retains **reference documentation only** (interview guides, scoring rubrics, onboarding tracks, email templates).
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    QUALIFICATION                             │
+│                                                              │
+│  Customer Repo ──→ prism-cli assessment run ──→ Score (0-100)│
+│                          12 categories, real artifacts        │
+│                                                              │
+│  SA Interview ──→ AI Agent (assessment web) ──→ Score (0-100)│
+│                     20 questions, 6 sections                 │
+│                                                              │
+│  Org Readiness ──→ 5 binary factors ──→ Org Score (0-20)    │
+│                                                              │
+├─────────────────────────────────────────────────────────────┤
+│                     SCORING                                  │
+│                                                              │
+│  Blended = 40% Scanner + 40% Interview + 20% Org Readiness  │
+│                         │                                    │
+│                    PRISM D1 Level (L1.0 – L5.0)             │
+│                         │                                    │
+│                    Verdict:                                   │
+│                    • READY_FOR_PILOT (≥L2.0, org≥12)        │
+│                    • NEEDS_FOUNDATIONS (≥L1.5, org≥8)        │
+│                    • NOT_QUALIFIED (below thresholds)         │
+│                                                              │
+├─────────────────────────────────────────────────────────────┤
+│                    ONBOARDING                                │
+│                                                              │
+│  Track A: Foundations ──→ Modules 00-02, 2wk pre-work       │
+│  Track B: Full Workshop ──→ All modules, 8-week pilot       │
+│  Track C: Accelerated ──→ Modules 03-05, targeted gaps      │
+│  Track D: Advanced ──→ Custom engagement, L4+ optimization   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## How to Run an Assessment
+
+There are two paths depending on who conducts the interview:
+
+### Path 1: CLI Scan → Hand off to SA
+
+Run the repo scanner yourself, then send the results to an SA who will conduct the interview and complete the assessment.
+
+```bash
+# Scan the customer's repo and export JSON for the SA
+./prism-cli.sh assessment run --repo ~/customer-repos/acme-app --output json --output-file acme-scan.json --verbose
+```
+
+The SA imports `acme-scan.json` into the web UI, conducts the interview, and generates the final report.
+
+### Path 2: Self-Service via Web UI
+
+Run the entire assessment yourself — scan, interview, scoring, and report — through the interactive web app:
+
+```bash
+./prism-cli.sh assessment web
+```
+
+Open `http://localhost:3120`, paste the customer's repo path (or import a JSON scan), then walk through the AI-guided interview. The app scores everything in real-time and generates a downloadable report at the end.
+
+---
+
+## Quickstart
 
 To run any assessment workflow, use `prism-cli`:
 
@@ -48,75 +109,7 @@ Launches the full assessment UI with AI-powered interview agent (Bedrock Claude)
 |--------|-------------|---------|
 | `--port <number>` | Port to serve on | `3120` |
 
-**Deployed instance:** When deployed to ECS, repo scanning is disabled — assessments use imported JSON data only.
-
 ---
-
-### `bootstrapper` — Project setup automation
-
-| Command | Description |
-|---------|-------------|
-| `bootstrapper install-git-hooks` | Install PRISM git hooks (prepare-commit-msg with token tracking) |
-| `bootstrapper install-eval-harness` | Install the GitHub Actions eval gate workflow |
-| `bootstrapper setup-github-oidc` | Configure GitHub OIDC federation for AWS access |
-
----
-
-### `securityagent` — AWS Security Agent management
-
-| Command | Description |
-|---------|-------------|
-| `securityagent setup` | Deploy Security Agent CDK stack + create application + attach role |
-
----
-
-### `workshop` — Workshop facilitation tools
-
-| Command | Description |
-|---------|-------------|
-| `workshop verify-setup` | Verify all prerequisites (AWS creds, tools, Bedrock access) |
-| `workshop generate-demo-data` | Generate realistic demo metrics for dashboards |
-| `workshop perform-pen-test` | Deploy sample app and run Security Agent pen test |
-| `workshop deploy-infra` | Deploy workshop infrastructure |
-| `workshop run-agent` | Run the workshop AI agent |
-
----
-
-## Assessment Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    QUALIFICATION                             │
-│                                                              │
-│  Customer Repo ──→ prism-cli assessment run ──→ Score (0-100)│
-│                          12 categories, real artifacts        │
-│                                                              │
-│  SA Interview ──→ AI Agent (assessment web) ──→ Score (0-100)│
-│                     20 questions, 6 sections                 │
-│                                                              │
-│  Org Readiness ──→ 5 binary factors ──→ Org Score (0-20)    │
-│                                                              │
-├─────────────────────────────────────────────────────────────┤
-│                     SCORING                                  │
-│                                                              │
-│  Blended = 40% Scanner + 40% Interview + 20% Org Readiness  │
-│                         │                                    │
-│                    PRISM D1 Level (L1.0 – L5.0)             │
-│                         │                                    │
-│                    Verdict:                                   │
-│                    • READY_FOR_PILOT (≥L2.0, org≥12)        │
-│                    • NEEDS_FOUNDATIONS (≥L1.5, org≥8)        │
-│                    • NOT_QUALIFIED (below thresholds)         │
-│                                                              │
-├─────────────────────────────────────────────────────────────┤
-│                    ONBOARDING                                │
-│                                                              │
-│  Track A: Foundations ──→ Modules 00-02, 2wk pre-work       │
-│  Track B: Full Workshop ──→ All modules, 8-week pilot       │
-│  Track C: Accelerated ──→ Modules 03-05, targeted gaps      │
-│  Track D: Advanced ──→ Custom engagement, L4+ optimization   │
-└─────────────────────────────────────────────────────────────┘
-```
 
 ## Reference Documentation
 
