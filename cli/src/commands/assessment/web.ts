@@ -596,14 +596,133 @@ function reportPage(scan: ScanResultJSON, interview: Record<string, any>, blende
       <td>${secScore}/${sec.maxScore}</td><td><span class="badge badge-${cls}">${pct}%</span></td></tr>`;
   }
 
-  // Scanner category rows
-  const scanRows = scan.categories.map(c => {
+  // Scanner category rows + radar chart data
+  const catData = scan.categories.map(c => {
     const pct = c.maxPoints > 0 ? Math.round((c.earnedPoints / c.maxPoints) * 100) : 0;
     const cls = pct >= 60 ? 'green' : pct >= 30 ? 'amber' : 'red';
-    return `<tr><td>${c.category}</td><td>${c.earnedPoints}/${c.maxPoints}</td>
-      <td><div class="progress-bg"><div class="progress-fill fill-${cls}" style="width:${pct}%"></div></div></td>
-      <td>${pct}%</td></tr>`;
+    return { name: c.category, earned: c.earnedPoints, max: c.maxPoints, pct, cls };
+  });
+  const scanRows = catData.map(c =>
+    `<tr><td>${c.name}</td><td>${c.earned}/${c.max}</td>
+      <td><div class="progress-bg"><div class="progress-fill fill-${c.cls}" style="width:${c.pct}%"></div></div></td>
+      <td>${c.pct}%</td></tr>`
+  ).join('');
+
+  // SVG Radar chart
+  const cx = 190, cy = 190, maxR = 150, n = catData.length;
+  const angleStep = (2 * Math.PI) / n;
+  const radarGrid = [0.25, 0.5, 0.75, 1.0].map(r =>
+    `<circle cx="${cx}" cy="${cy}" r="${Math.round(maxR * r)}" fill="none" stroke="#e2e8f0" stroke-width="1"/>`
+  ).join('');
+  const radarAxes = catData.map((_, i) => {
+    const a = -Math.PI / 2 + i * angleStep;
+    const x2 = Math.round(cx + maxR * Math.cos(a));
+    const y2 = Math.round(cy + maxR * Math.sin(a));
+    return `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#e2e8f0" stroke-width="1"/>`;
   }).join('');
+  const radarPoints = catData.map((c, i) => {
+    const a = -Math.PI / 2 + i * angleStep;
+    const r = (c.pct / 100) * maxR;
+    return `${Math.round(cx + r * Math.cos(a))},${Math.round(cy + r * Math.sin(a))}`;
+  }).join(' ');
+  const radarDots = catData.map((c, i) => {
+    const a = -Math.PI / 2 + i * angleStep;
+    const r = (c.pct / 100) * maxR;
+    const color = c.cls === 'green' ? '#22c55e' : c.cls === 'amber' ? '#f59e0b' : '#ef4444';
+    return `<circle cx="${Math.round(cx + r * Math.cos(a))}" cy="${Math.round(cy + r * Math.sin(a))}" r="5" fill="${color}" stroke="#fff" stroke-width="2"/>`;
+  }).join('');
+  const radarLabels = catData.map((c, i) => {
+    const a = -Math.PI / 2 + i * angleStep;
+    const lr = maxR + 20;
+    const x = Math.round(cx + lr * Math.cos(a));
+    const y = Math.round(cy + lr * Math.sin(a));
+    const anchor = Math.abs(Math.cos(a)) < 0.1 ? 'middle' : Math.cos(a) > 0 ? 'start' : 'end';
+    const shortName = c.name.length > 14 ? c.name.slice(0, 12) + '…' : c.name;
+    return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="10" fill="#64748b">${shortName}</text>`;
+  }).join('');
+  const radarSvg = `<svg viewBox="0 0 380 380" width="380" height="380" xmlns="http://www.w3.org/2000/svg">
+    ${radarGrid}${radarAxes}
+    <polygon points="${radarPoints}" fill="rgba(124,58,237,0.15)" stroke="#7c3aed" stroke-width="2"/>
+    ${radarDots}${radarLabels}
+  </svg>`;
+
+  // Gap analysis (bottom 5 categories by percentage)
+  const allScored = [
+    ...catData.map(c => ({ name: c.name, source: 'scanner' as const, pct: c.pct, score: c.earned, max: c.max })),
+    ...(() => {
+      const result: { name: string; source: 'interview'; pct: number; score: number; max: number }[] = [];
+      for (const sec of INTERVIEW_SECTIONS) {
+        let s = 0;
+        for (const q of sec.questions) s += parseInt(interview[q.id] || '0', 10);
+        const p = sec.maxScore > 0 ? Math.round((s / sec.maxScore) * 100) : 0;
+        result.push({ name: sec.name, source: 'interview', pct: p, score: s, max: sec.maxScore });
+      }
+      return result;
+    })(),
+  ];
+  const gaps = [...allScored].sort((a, b) => a.pct - b.pct).slice(0, 5);
+  const strengths = [...allScored].sort((a, b) => b.pct - a.pct).slice(0, 3);
+
+  const REMEDIATION: Record<string, string> = {
+    'AI Tool Config': 'Configure Bedrock access for every developer. Establish tool version pinning policy.',
+    'Spec-Driven Dev': 'Adopt the three spec types as mandatory pre-work for AI-assisted tasks.',
+    'Commit Hygiene': 'Deploy git hooks for AI-Origin and AI-Confidence trailers.',
+    'CI/CD Integration': 'Add Bedrock Evaluation step to the primary PR pipeline.',
+    'Eval & Quality': 'Define quality rubrics for AI-generated code. Implement automated scoring.',
+    'Testing Maturity': 'Increase test coverage targets for AI-generated code.',
+    'AI Observability': 'Deploy the EventBridge metrics pipeline. Enable token tracking and cost attribution.',
+    'Governance': 'Create an AI usage governance charter. Define approval workflows.',
+    'Agent Workflows': 'Identify first candidate for a multi-step agent workflow.',
+    'Platform Reuse': 'Audit for reusable AI components. Create a shared prompt library.',
+    'Documentation': 'Add AI-assisted documentation generation to the build process.',
+    'Dependencies': 'Maintain dependency freshness and security scanning.',
+    'AI Tooling Landscape': 'Standardize AI toolset across all squads with shared configuration.',
+    'Development Workflow & Specs': 'Formalize spec-driven workflow. Ensure every AI task starts with a spec.',
+    'CI/CD & Quality': 'Integrate eval gates into all active pipelines. Define quality baselines.',
+    'Metrics & Visibility': 'Deploy the executive dashboard. Define key metrics and review cadence.',
+    'Governance & Security': 'Draft AI governance charter. Address data residency and PII concerns.',
+    'Organization & Culture': 'Run team enablement workshops. Create an internal AI champions program.',
+  };
+  const gapRows = gaps.map((g, i) =>
+    `<tr><td style="text-align:center;font-weight:700">#${i + 1}</td><td>${g.name}</td>
+      <td style="text-align:center"><span class="badge badge-${g.pct >= 60 ? 'green' : g.pct >= 30 ? 'amber' : 'red'}">${g.source}</span></td>
+      <td style="text-align:center">${g.score}/${g.max} (${g.pct}%)</td>
+      <td style="font-size:13px">${REMEDIATION[g.name] || 'Develop a targeted improvement plan with your SA.'}</td></tr>`
+  ).join('');
+  const strengthRows = strengths.map((s, i) =>
+    `<tr><td style="text-align:center;font-weight:700">#${i + 1}</td><td>${s.name}</td>
+      <td style="text-align:center"><span class="badge badge-${s.pct >= 60 ? 'green' : s.pct >= 30 ? 'amber' : 'red'}">${s.source}</span></td>
+      <td style="text-align:center">${s.score}/${s.max} (${s.pct}%)</td></tr>`
+  ).join('');
+
+  // Onboarding track routing
+  const level = parseFloat(blended.level.replace('L', ''));
+  const track = level >= 3.5 ? { letter: 'D', name: 'Advanced', desc: 'Custom engagement, L4+ optimization' }
+    : level >= 2.5 ? { letter: 'C', name: 'Accelerated', desc: 'Modules 03-05, targeted gaps' }
+    : level >= 2.0 ? { letter: 'B', name: 'Full Workshop', desc: 'All modules, 8-week pilot' }
+    : { letter: 'A', name: 'Foundations', desc: 'Modules 00-02, 2-week pre-work' };
+
+  // 90-day roadmap
+  const milestones = [
+    { week: '1-2', milestone: 'Environment Setup & Baseline', measurable: 'All engineers have Bedrock access, baseline metrics captured' },
+    { week: '3-4', milestone: 'Workshop Delivery', measurable: `Track ${track.letter} modules completed, eval gates configured` },
+    { week: '5-8', milestone: 'Pilot Execution', measurable: 'AI acceptance rate ≥30%, spec-driven workflow adopted' },
+    { week: '9-12', milestone: 'Measurement & Optimization', measurable: 'Dashboard live, PRISM level re-assessed, ROI documented' },
+  ];
+  const milestoneRows = milestones.map(m =>
+    `<tr><td style="text-align:center;font-weight:600">Week ${m.week}</td><td>${m.milestone}</td><td style="font-size:13px">${m.measurable}</td></tr>`
+  ).join('');
+
+  // Success metrics
+  const successMetrics = [
+    { metric: 'AI Acceptance Rate', target: '≥30%', by: 'Week 8' },
+    { metric: 'Eval Gate Pass Rate', target: '≥80%', by: 'Week 6' },
+    { metric: 'Lead Time Reduction', target: '≥20%', by: 'Week 12' },
+    { metric: 'PRISM Level Increase', target: '+1.0', by: 'Week 12' },
+  ];
+  const metricsRows = successMetrics.map(m =>
+    `<tr><td>${m.metric}</td><td style="font-weight:600">${m.target}</td><td>${m.by}</td></tr>`
+  ).join('');
 
   const verdictCls = blended.verdict === 'READY_FOR_PILOT' ? 'green' : blended.verdict === 'NEEDS_FOUNDATIONS' ? 'amber' : 'red';
   const verdictLabel = blended.verdict.replace(/_/g, ' ');
@@ -657,7 +776,8 @@ function reportPage(scan: ScanResultJSON, interview: Record<string, any>, blende
 </div>
 
 <div class="card">
-  <h2>Scanner Breakdown</h2>
+  <h2>Scanner Category Breakdown</h2>
+  <div style="text-align:center;margin:20px 0">${radarSvg}</div>
   <table><thead><tr><th>Category</th><th>Score</th><th>Progress</th><th>%</th></tr></thead>
   <tbody>${scanRows}</tbody></table>
 </div>
@@ -672,6 +792,40 @@ function reportPage(scan: ScanResultJSON, interview: Record<string, any>, blende
   <h2>Organizational Readiness</h2>
   <div style="margin:8px 0">${orgHtml}</div>
   <p class="subtitle">Score: ${blended.orgReadinessScore}/20</p>
+</div>
+
+<div class="card">
+  <h2>Top Strengths</h2>
+  <p class="subtitle" style="margin-bottom:12px">Top 3 capabilities to build on:</p>
+  <table><thead><tr><th style="text-align:center">Rank</th><th>Area</th><th style="text-align:center">Source</th><th style="text-align:center">Score</th></tr></thead>
+  <tbody>${strengthRows}</tbody></table>
+</div>
+
+<div class="card">
+  <h2>Gap Analysis &amp; Remediation</h2>
+  <p class="subtitle" style="margin-bottom:12px">Top 5 areas with the largest opportunity for improvement:</p>
+  <table><thead><tr><th style="text-align:center">Rank</th><th>Area</th><th style="text-align:center">Source</th><th style="text-align:center">Score</th><th>Recommended Action</th></tr></thead>
+  <tbody>${gapRows}</tbody></table>
+</div>
+
+<div class="card">
+  <h2>Onboarding Recommendation</h2>
+  <div style="margin-bottom:16px">
+    <span style="display:inline-block;padding:6px 18px;border-radius:6px;background:linear-gradient(135deg,#0066ff,#7c3aed);color:#fff;font-size:18px;font-weight:700">Track ${track.letter}: ${track.name}</span>
+  </div>
+  <p style="color:#64748b;font-size:14px">${track.desc}</p>
+</div>
+
+<div class="card">
+  <h2>90-Day Roadmap</h2>
+  <table><thead><tr><th style="text-align:center">When</th><th>Milestone</th><th>Measurable Outcome</th></tr></thead>
+  <tbody>${milestoneRows}</tbody></table>
+</div>
+
+<div class="card">
+  <h2>Success Metrics</h2>
+  <table><thead><tr><th>Metric</th><th>Target</th><th>Measure By</th></tr></thead>
+  <tbody>${metricsRows}</tbody></table>
 </div>
 
 ${scan.recommendations.length > 0 ? `<div class="card"><h2>Recommendations</h2><ul>${scan.recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>` : ''}
