@@ -87,7 +87,7 @@
       "description": "HTTP security headers are set on all HTML-serving endpoints (CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy).",
       "references": ["SECURITY-04"],
       "scoring": {
-        "5": "All required headers set: CSP (no unsafe-inline/eval), HSTS (max-age >= 31536000), X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin.",
+        "5": "All required headers set: CSP (no inline or eval directives), HSTS (max-age >= 31536000), X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin.",
         "4": "Most headers set. Minor gaps in CSP strictness.",
         "3": "Some security headers present. CSP or HSTS missing.",
         "2": "Only 1-2 security headers configured.",
