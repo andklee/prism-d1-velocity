@@ -37,7 +37,7 @@ const aiToolConfig: ScanFn = async (repo, cfg) => {
   evidence.push(ev('CLAUDE.md has spec-first enforcement', hasSpec, 2, hasSpec ? 'Spec-driven patterns found' : 'No spec-first rules in CLAUDE.md'));
 
   // Kiro config (2 pts)
-  const hasKiro = dirExists(repo, '.kiro') || (await findFiles(repo, '**/.kiro*')).length > 0;
+  const hasKiro = dirExists(repo, '.kiro') || dirExists(repo, '.kiro/steering') || dirExists(repo, '.kiro/specs') || (await findFiles(repo, '**/.kiro*')).length > 0;
   evidence.push(ev('Kiro configuration exists', hasKiro, 2, hasKiro ? 'Kiro config found' : 'No .kiro directory'));
 
   // AI IDE config (1 pt)
@@ -58,17 +58,17 @@ const aiToolConfig: ScanFn = async (repo, cfg) => {
 const specDriven: ScanFn = async (repo) => {
   const evidence: Evidence[] = [];
 
-  const specDir = ['specs', 'spec', 'specifications', '.kiro/specs'].find(d => dirExists(repo, d));
+  const specDir = ['specs', 'spec', 'specifications', '.kiro/specs', '.kiro/steering'].find(d => dirExists(repo, d));
   evidence.push(ev('Specs directory exists', !!specDir, 2, specDir ? `Found: ${specDir}/` : 'No specs/ directory'));
 
-  const specFiles = await findFiles(repo, ['**/specs/**/*.{md,yaml,yml,json}', '**/spec/**/*.{md,yaml,yml,json}', '**/.kiro/specs/**/*.{md,yaml,yml,json}', '**/*spec*.md'],
+  const specFiles = await findFiles(repo, ['**/specs/**/*.{md,yaml,yml,json}', '**/spec/**/*.{md,yaml,yml,json}', '**/.kiro/specs/**/*.{md,yaml,yml,json}', '**/.kiro/steering/**/*.md', '**/*spec*.md'],
     ['**/*.test.*', '**/*.spec.ts', '**/*.spec.js']);
   const count = new Set(specFiles).size;
   const pts = count >= 10 ? 6 : count >= 4 ? 4 : count >= 1 ? 2 : 0;
   evidence.push(ev('Spec file count', count > 0, pts, `Found ${count} spec files`));
 
   let structured = false;
-  const structPats = [/## requirements/i, /## acceptance criteria/i, /acceptance[_\s-]?criteria/i, /## scope/i];
+  const structPats = [/## requirements/i, /## acceptance criteria/i, /acceptance[_\s-]?criteria/i, /## scope/i, /## summary/i, /## tasks/i, /## endpoint definition/i, /## request schema/i, /## design/i];
   for (const f of specFiles.slice(0, 20)) {
     const c = readSafe(repo, f);
     if (structPats.filter(p => p.test(c)).length >= 2) { structured = true; break; }
